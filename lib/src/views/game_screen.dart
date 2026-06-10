@@ -866,7 +866,7 @@ class CargoBoxPainter extends CustomPainter {
       ..color = CyberTheme.neonYellow.withValues(alpha: 0.25 * (2.0 - cargoPulse))
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
-    canvas.drawCircle(center, cargoBoxSize * 0.8 * cargoPulse, cargoPulsePaint);
+    canvas.drawCircle(center, cargoBoxSize * 1.6 * cargoPulse, cargoPulsePaint);
 
     // 2. Draw Crate body
     final cargoRect = Rect.fromCenter(
