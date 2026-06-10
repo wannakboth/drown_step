@@ -505,10 +505,10 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 ),
                 const SizedBox(height: 4.0),
                 Text(
-                  '${state.commandQueue.length}/${state.level.star3Target}',
+                  '${state.totalBlockCount}/${state.level.star3Target}',
                   style: CyberTheme.fontCode(
                     size: 13.0,
-                    color: state.commandQueue.length <= state.level.star3Target
+                    color: state.totalBlockCount <= state.level.star3Target
                         ? CyberTheme.neonGreen
                         : CyberTheme.neonYellow,
                   ).copyWith(fontWeight: FontWeight.bold),
@@ -523,9 +523,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
   Widget _buildSuccessOverlay(DroneGameState state) {
     int stars = 1;
-    if (state.commandQueue.length <= state.level.star3Target) {
+    if (state.totalBlockCount <= state.level.star3Target) {
       stars = 3;
-    } else if (state.commandQueue.length <= state.level.star3Target + 3) {
+    } else if (state.totalBlockCount <= state.level.star3Target + 3) {
       stars = 2;
     }
 
