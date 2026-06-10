@@ -110,6 +110,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 flex: 5,
                                 child: Column(
                                   children: [
+                                    _buildLevelInfoPanel(state),
+                                    const SizedBox(height: 16.0),
                                     _buildHudPanel(state),
                                     const SizedBox(height: 16.0),
                                     const Expanded(child: CommandPanel()),
@@ -122,6 +124,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                             children: [
                               // Grid Arena
                               Expanded(flex: 9, child: _buildGridArena(state)),
+                              const SizedBox(height: 16.0),
+                              // Level Guide Info
+                              _buildLevelInfoPanel(state),
                               const SizedBox(height: 16.0),
                               // HUD Statistics
                               _buildHudPanel(state),
@@ -363,6 +368,72 @@ class _GameScreenState extends ConsumerState<GameScreen>
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildLevelInfoPanel(DroneGameState state) {
+    final level = state.level;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      decoration: BoxDecoration(
+        color: CyberTheme.cardBg,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: CyberTheme.borderTranslucent, width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.description_outlined, size: 13.0, color: CyberTheme.neonCyan),
+                  const SizedBox(width: 6.0),
+                  Text(
+                    'MISSION BRIEFING',
+                    style: CyberTheme.fontHeading(size: 9.0, color: CyberTheme.neonCyan),
+                  ),
+                ],
+              ),
+              if (level.hint != null) ...[
+                const SizedBox(width: 8.0),
+                Row(
+                  children: [
+                    const Icon(Icons.lightbulb_outline, size: 12.0, color: CyberTheme.neonYellow),
+                    const SizedBox(width: 4.0),
+                    Text(
+                      'HINT AVAILABLE',
+                      style: CyberTheme.fontHeading(size: 8.5, color: CyberTheme.neonYellow),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            level.description,
+            style: CyberTheme.fontCode(size: 10.0, color: Colors.white70),
+          ),
+          if (level.hint != null) ...[
+            const SizedBox(height: 8.0),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+              decoration: BoxDecoration(
+                color: CyberTheme.neonYellow.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8.0),
+                border: Border.all(color: CyberTheme.neonYellow.withValues(alpha: 0.2), width: 1.0),
+              ),
+              child: Text(
+                'HINT: ${level.hint!}',
+                style: CyberTheme.fontCode(size: 9.0, color: CyberTheme.neonYellow),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
