@@ -276,7 +276,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
             final droneTop =
                 state.droneY * cellHeight + (cellHeight - droneSize) / 2;
 
-            final double cargoBoxSize = math.min(cellWidth, cellHeight) * 0.34;
+            final double cargoBoxSize = math.min(cellWidth, cellHeight) * 0.22;
             final cargoLeft =
                 level.boxX * cellWidth + (cellWidth - cargoBoxSize) / 2;
             final cargoTop =

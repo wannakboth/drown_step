@@ -362,7 +362,7 @@ class _CustomDronePainter extends CustomPainter {
     // 3. Draw Grabber Claws & Cargo Crate (Drawn behind body fuselage)
     // Claws extend vertically downwards under the drone body
     final double clawY = cy + (size.height * 0.075) + (clawExtension * size.height * 0.2);
-    final double clawSpread = (size.width * 0.125) - (clawExtension * size.width * 0.05);
+    final double clawSpread = (size.width * 0.20) - (clawExtension * size.width * 0.05);
 
     final clawPaint = Paint()
       ..color = const Color(0xFF64748B)
@@ -386,7 +386,7 @@ class _CustomDronePainter extends CustomPainter {
 
     // Render Carried Cargo Box Crate if visible
     if (isCargoVisible) {
-      final double crateSize = size.width * 0.175;
+      final double crateSize = size.width * 0.30;
       final crateRect = Rect.fromLTWH(
         cx - crateSize / 2,
         clawY,
