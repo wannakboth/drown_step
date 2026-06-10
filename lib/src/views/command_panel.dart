@@ -15,7 +15,10 @@ final _draggedBlockIdProvider = NotifierProvider<DraggedBlockIdNotifier, String?
   DraggedBlockIdNotifier.new,
 );
 
-Widget _buildInsertDropTarget(int index, String? parentId, bool isElse, GameStateNotifier notifier) {
+Widget _buildInsertDropTarget(WidgetRef ref, int index, String? parentId, bool isElse, GameStateNotifier notifier) {
+  final draggedBlockId = ref.watch(_draggedBlockIdProvider);
+  final isDragActive = draggedBlockId != null;
+
   return DragTarget<ProgramBlock>(
     onWillAcceptWithDetails: (details) => true,
     onAcceptWithDetails: (details) {
@@ -29,43 +32,71 @@ Widget _buildInsertDropTarget(int index, String? parentId, bool isElse, GameStat
     },
     builder: (context, candidateData, rejectedData) {
       final isHovered = candidateData.isNotEmpty;
-      return AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeInOut,
-        height: isHovered ? 48.0 : 4.0,
-        margin: EdgeInsets.symmetric(vertical: isHovered ? 6.0 : 1.0),
-        decoration: BoxDecoration(
-          color: isHovered ? CyberTheme.neonCyan.withValues(alpha: 0.05) : Colors.transparent,
+
+      double height;
+      EdgeInsets margin;
+      BoxDecoration decoration;
+      Widget? child;
+
+      if (!isDragActive) {
+        height = 0.0;
+        margin = EdgeInsets.zero;
+        decoration = const BoxDecoration(color: Colors.transparent);
+      } else if (isHovered) {
+        height = 44.0;
+        margin = const EdgeInsets.symmetric(vertical: 4.0);
+        decoration = BoxDecoration(
+          color: CyberTheme.neonCyan.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(6.0),
-          border: isHovered
-              ? Border.all(color: CyberTheme.neonCyan.withValues(alpha: 0.8), width: 1.5)
-              : null,
-          boxShadow: isHovered
-              ? [
-                  BoxShadow(
-                    color: CyberTheme.neonCyan.withValues(alpha: 0.25),
-                    blurRadius: 8.0,
-                    spreadRadius: 1.0,
-                  )
-                ]
-              : null,
-        ),
-        child: isHovered
-            ? Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.add_circle_outline, size: 14.0, color: CyberTheme.neonCyan),
-                    const SizedBox(width: 6.0),
-                    Text(
-                      'PLACE HERE',
-                      style: CyberTheme.fontCode(size: 9.0, color: CyberTheme.neonCyan)
-                          .copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.0),
-                    ),
-                  ],
-                ),
-              )
-            : null,
+          border: Border.all(color: CyberTheme.neonCyan.withValues(alpha: 0.8), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: CyberTheme.neonCyan.withValues(alpha: 0.25),
+              blurRadius: 8.0,
+              spreadRadius: 1.0,
+            )
+          ],
+        );
+        child = Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.add_circle_outline, size: 14.0, color: CyberTheme.neonCyan),
+              const SizedBox(width: 6.0),
+              Text(
+                'PLACE HERE',
+                style: CyberTheme.fontCode(size: 9.0, color: CyberTheme.neonCyan)
+                    .copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.0),
+              ),
+            ],
+          ),
+        );
+      } else {
+        height = 18.0;
+        margin = const EdgeInsets.symmetric(vertical: 2.0);
+        decoration = BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(4.0),
+        );
+        child = Center(
+          child: Container(
+            width: 80.0,
+            height: 2.0,
+            decoration: BoxDecoration(
+              color: CyberTheme.neonCyan.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(1.0),
+            ),
+          ),
+        );
+      }
+
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        height: height,
+        margin: margin,
+        decoration: decoration,
+        child: child,
       );
     },
   );
@@ -475,7 +506,7 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                           ? const SizedBox.shrink()
                           : Column(
                               children: [
-                                _buildInsertDropTarget(idx, null, false, notifier),
+                                _buildInsertDropTarget(ref, idx, null, false, notifier),
                                 VisualBlock(
                                   block: blockItem,
                                   parentId: null,
@@ -485,7 +516,7 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                                   activeBlockId: state.activeBlockId,
                                 ),
                                 if (idx == program.length - 1)
-                                  _buildInsertDropTarget(idx + 1, null, false, notifier),
+                                  _buildInsertDropTarget(ref, idx + 1, null, false, notifier),
                               ],
                             ),
                     );
@@ -864,7 +895,7 @@ class VisualBlock extends ConsumerWidget {
                           ? const SizedBox.shrink()
                           : Column(
                               children: [
-                                _buildInsertDropTarget(idx, block.id, nestedIsElse, notifier),
+                                _buildInsertDropTarget(ref, idx, block.id, nestedIsElse, notifier),
                                 VisualBlock(
                                   block: blockItem,
                                   parentId: block.id,
@@ -874,7 +905,7 @@ class VisualBlock extends ConsumerWidget {
                                   activeBlockId: activeBlockId,
                                 ),
                                 if (idx == children.length - 1)
-                                  _buildInsertDropTarget(idx + 1, block.id, nestedIsElse, notifier),
+                                  _buildInsertDropTarget(ref, idx + 1, block.id, nestedIsElse, notifier),
                               ],
                             ),
                     );
