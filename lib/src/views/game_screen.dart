@@ -276,6 +276,12 @@ class _GameScreenState extends ConsumerState<GameScreen>
             final droneTop =
                 state.droneY * cellHeight + (cellHeight - droneSize) / 2;
 
+            final double cargoBoxSize = math.min(cellWidth, cellHeight) * 0.34;
+            final cargoLeft =
+                level.boxX * cellWidth + (cellWidth - cargoBoxSize) / 2;
+            final cargoTop =
+                level.boxY * cellHeight + (cellHeight - cargoBoxSize) / 2;
+
             return Center(
               child: SizedBox(
                 width: width,
@@ -283,22 +289,35 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // Grid Painter
+                    // Grid Painter & Cargo Overlay
                     AnimatedBuilder(
                       animation: _gridAnimationController,
                       builder: (context, child) {
-                        return CustomPaint(
-                          size: Size(width, height),
-                          painter: GameGridPainter(
-                            level: level,
-                            droneX: state.droneX,
-                            droneY: state.droneY,
-                            droneHeight: state.droneHeight,
-                            remainingEnergyCells: state.remainingEnergyCells,
-                            pathHistory: state.pathHistory,
-                            animationValue: _gridAnimationController.value,
-                            hasCargo: state.hasCargo,
-                          ),
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CustomPaint(
+                              size: Size(width, height),
+                              painter: GameGridPainter(
+                                level: level,
+                                droneX: state.droneX,
+                                droneY: state.droneY,
+                                droneHeight: state.droneHeight,
+                                remainingEnergyCells: state.remainingEnergyCells,
+                                pathHistory: state.pathHistory,
+                                animationValue: _gridAnimationController.value,
+                                hasCargo: state.hasCargo,
+                              ),
+                            ),
+                            CargoBoxWidget(
+                              left: cargoLeft,
+                              top: cargoTop,
+                              size: cargoBoxSize,
+                              hasCargo: state.hasCargo,
+                              speedMultiplier: state.speedMultiplier,
+                              animationValue: _gridAnimationController.value,
+                            ),
+                          ],
                         );
                       },
                     ),
@@ -726,5 +745,175 @@ class _GameScreenState extends ConsumerState<GameScreen>
         ),
       ),
     );
+  }
+}
+
+class CargoBoxWidget extends StatefulWidget {
+  final double left;
+  final double top;
+  final double size;
+  final bool hasCargo;
+  final double speedMultiplier;
+  final double animationValue;
+
+  const CargoBoxWidget({
+    super.key,
+    required this.left,
+    required this.top,
+    required this.size,
+    required this.hasCargo,
+    required this.speedMultiplier,
+    required this.animationValue,
+  });
+
+  @override
+  State<CargoBoxWidget> createState() => _CargoBoxWidgetState();
+}
+
+class _CargoBoxWidgetState extends State<CargoBoxWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInBack),
+    );
+    _opacityAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+
+    if (widget.hasCargo) {
+      _controller.value = 1.0; // Already picked up
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant CargoBoxWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.hasCargo && !oldWidget.hasCargo) {
+      // Delay the shrink/fade until the drone claw reaches the box
+      final delayMs = (700 / widget.speedMultiplier).round();
+      Future.delayed(Duration(milliseconds: delayMs), () {
+        if (mounted) {
+          _controller.forward();
+        }
+      });
+    } else if (!widget.hasCargo && oldWidget.hasCargo) {
+      _controller.reset(); // Instant reset to visible!
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final scale = _scaleAnimation.value;
+        final opacity = _opacityAnimation.value;
+
+        if (opacity <= 0.0) return const SizedBox.shrink();
+
+        return Positioned(
+          left: widget.left,
+          top: widget.top,
+          width: widget.size,
+          height: widget.size,
+          child: Opacity(
+            opacity: opacity,
+            child: Transform.scale(
+              scale: scale,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: CustomPaint(
+        size: Size(widget.size, widget.size),
+        painter: CargoBoxPainter(animationValue: widget.animationValue),
+      ),
+    );
+  }
+}
+
+class CargoBoxPainter extends CustomPainter {
+  final double animationValue;
+
+  CargoBoxPainter({required this.animationValue});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final center = Offset(cx, cy);
+    final double cargoBoxSize = size.width;
+
+    // 1. Pulse highlight ring around cargo
+    final cargoPulse = 1.0 + 0.1 * math.sin((animationValue + 0.5) * 2 * math.pi);
+    final cargoPulsePaint = Paint()
+      ..color = CyberTheme.neonYellow.withValues(alpha: 0.25 * (2.0 - cargoPulse))
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    canvas.drawCircle(center, cargoBoxSize * 0.8 * cargoPulse, cargoPulsePaint);
+
+    // 2. Draw Crate body
+    final cargoRect = Rect.fromCenter(
+      center: center,
+      width: cargoBoxSize,
+      height: cargoBoxSize,
+    );
+    final cargoPaint = Paint()
+      ..color = CyberTheme.neonYellow.withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(RRect.fromRectAndRadius(cargoRect, const Radius.circular(5.0)), cargoPaint);
+
+    final cargoBorder = Paint()
+      ..color = CyberTheme.neonYellow
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawRRect(RRect.fromRectAndRadius(cargoRect, const Radius.circular(5.0)), cargoBorder);
+
+    // 3. Warning stripe patterns inside crate
+    final stripePaint = Paint()
+      ..color = CyberTheme.neonYellow.withValues(alpha: 0.5)
+      ..strokeWidth = 1.5;
+    canvas.drawLine(cargoRect.topLeft, cargoRect.bottomRight, stripePaint);
+    canvas.drawLine(cargoRect.bottomLeft, cargoRect.topRight, stripePaint);
+
+    // 4. Text Label "CARGO"
+    final cargoTextPainter = TextPainter(
+      text: const TextSpan(
+        text: 'CARGO',
+        style: TextStyle(
+          color: CyberTheme.neonYellow,
+          fontSize: 8.0,
+          fontFamily: 'ShareTechMono',
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    cargoTextPainter.layout();
+    cargoTextPainter.paint(
+      canvas,
+      Offset(cx - cargoTextPainter.width / 2, cy + cargoBoxSize / 2 + 3.0),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CargoBoxPainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue;
   }
 }

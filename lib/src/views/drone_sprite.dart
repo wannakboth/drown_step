@@ -87,7 +87,13 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
     if (widget.isFlying && !_rotorController.isAnimating) {
       _rotorController.repeat();
     } else if (!widget.isFlying && _rotorController.isAnimating && widget.status != GameStatus.idle) {
-      _rotorController.stop();
+      // Delay stopping rotors until landing animation finishes (600ms)
+      final delayMs = (600 / widget.speedMultiplier).round();
+      Future.delayed(Duration(milliseconds: delayMs), () {
+        if (mounted && !widget.isFlying) {
+          _rotorController.stop();
+        }
+      });
     }
 
     // Trigger pickup animation when cargo state changes from false -> true
@@ -162,110 +168,117 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    // Combine 3D flight scale with the entry drop-in scale
-    return AnimatedBuilder(
-      animation: Listenable.merge([_entryController, _bobbingController, _clawController, _rotorController]),
-      builder: (context, child) {
-        final entryVal = 1.0 - Curves.easeOutCubic.transform(_entryController.value); // 1.0 (high) to 0.0 (landed)
-        
-        // 3D scale based on height
-        double baseScale = 1.0;
-        if (widget.height > 0) {
-          baseScale = 1.15 + (widget.height - 1) * 0.15;
-        }
+    final targetHeight = widget.height.toDouble();
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: targetHeight, end: targetHeight),
+      duration: Duration(milliseconds: (600 / widget.speedMultiplier).round()),
+      curve: Curves.easeInOutCubic,
+      builder: (context, animatedHeight, child) {
+        // Combine 3D flight scale with the entry drop-in scale
+        return AnimatedBuilder(
+          animation: Listenable.merge([_entryController, _bobbingController, _clawController, _rotorController]),
+          builder: (context, child) {
+            final entryVal = 1.0 - Curves.easeOutCubic.transform(_entryController.value); // 1.0 (high) to 0.0 (landed)
+            
+            // 3D scale based on height
+            final baseScale = 1.0 + 0.15 * animatedHeight;
 
-        // Apply drop-in scale (starts at 2.5 when entryVal is 1.0, shrinks to 1.0 when entryVal is 0.0)
-        final entryScale = ui.lerpDouble(1.0, 2.5, entryVal)!;
-        final scale = baseScale * entryScale;
+            // Apply drop-in scale (starts at 2.5 when entryVal is 1.0, shrinks to 1.0 when entryVal is 0.0)
+            final entryScale = ui.lerpDouble(1.0, 2.5, entryVal)!;
+            final scale = baseScale * entryScale;
 
-        // Hover bobbing offset (sinus float in mid-air)
-        final double bobOffset = widget.height > 0 
-            ? (widget.size * 0.05) * math.sin(_bobbingController.value * 2 * math.pi)
-            : 0.0;
+            // Hover bobbing offset (sinus float in mid-air)
+            final double bobOffset = animatedHeight > 0.05 
+                ? (widget.size * 0.05) * math.sin(_bobbingController.value * 2 * math.pi)
+                : 0.0;
 
-        // Visual landing drop offset (falls from -100px when entryVal is 1.0 down to 0px when entryVal is 0.0)
-        final double entryYOffset = -100.0 * entryVal;
+            // Visual landing drop offset (falls from -100px when entryVal is 1.0 down to 0px when entryVal is 0.0)
+            final double entryYOffset = -100.0 * entryVal;
 
-        return Transform.translate(
-          offset: Offset(0.0, entryYOffset + bobOffset),
-          child: Transform.scale(
-            scale: scale,
-            child: AnimatedRotation(
-              turns: widget.direction.angleInRadians / (2 * math.pi),
-              duration: Duration(milliseconds: (250 / widget.speedMultiplier).round()),
-              curve: Curves.easeInOut,
-              child: SizedBox(
-                width: widget.size,
-                height: widget.size,
-                child: Stack(
-                  alignment: Alignment.center,
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Thruster engine glow beneath drone
-                    if (widget.isFlying || entryVal > 0.05)
-                      Container(
-                        width: widget.size * 0.48,
-                        height: widget.size * 0.48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: CyberTheme.neonGlow(
-                            widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan,
-                            radius: widget.size * 0.3 * (widget.isFlying ? 1.0 : entryVal),
-                          ),
-                        ),
-                      ),
+            final isCurrentlyFlying = widget.isFlying || animatedHeight > 0.05;
 
-                    // Custom Painted Drone
-                    CustomPaint(
-                      size: Size(widget.size, widget.size),
-                      painter: _CustomDronePainter(
-                        rotorAngle: _rotorController.value * 2 * math.pi,
-                        clawExtension: _clawController.value,
-                        isCargoVisible: _isCargoVisible,
-                        hasCargo: widget.hasCargo,
-                        isFlying: widget.isFlying,
-                        status: widget.status,
-                      ),
-                    ),
-
-                    // Counter-rotating telemetry altitude badge
-                    Positioned(
-                      bottom: -(widget.size * 0.1),
-                      child: AnimatedRotation(
-                        turns: -widget.direction.angleInRadians / (2 * math.pi),
-                        duration: const Duration(milliseconds: 300),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: widget.size * 0.0875,
-                            vertical: widget.size * 0.025,
-                          ),
-                          decoration: BoxDecoration(
-                            color: CyberTheme.cardBg.withValues(alpha: 0.95),
-                            borderRadius: BorderRadius.circular(20.0),
-                            border: Border.all(
-                              color: widget.isFlying
-                                  ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
-                                  : CyberTheme.borderTranslucent,
-                              width: 1.0,
+            return Transform.translate(
+              offset: Offset(0.0, entryYOffset + bobOffset),
+              child: Transform.scale(
+                scale: scale,
+                child: AnimatedRotation(
+                  turns: widget.direction.angleInRadians / (2 * math.pi),
+                  duration: Duration(milliseconds: (250 / widget.speedMultiplier).round()),
+                  curve: Curves.easeInOut,
+                  child: SizedBox(
+                    width: widget.size,
+                    height: widget.size,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Thruster engine glow beneath drone
+                        if (isCurrentlyFlying || entryVal > 0.05)
+                          Container(
+                            width: widget.size * 0.48,
+                            height: widget.size * 0.48,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: CyberTheme.neonGlow(
+                                widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan,
+                                radius: widget.size * 0.3 * (isCurrentlyFlying ? 1.0 : entryVal),
+                              ),
                             ),
                           ),
-                          child: Text(
-                            'ALT ${widget.height}',
-                            style: CyberTheme.fontCode(
-                              size: math.max(6.0, widget.size * 0.1),
-                              color: widget.isFlying
-                                  ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
-                                  : CyberTheme.textMuted,
-                            ).copyWith(fontWeight: FontWeight.bold),
+
+                        // Custom Painted Drone
+                        CustomPaint(
+                          size: Size(widget.size, widget.size),
+                          painter: _CustomDronePainter(
+                            rotorAngle: _rotorController.value * 2 * math.pi,
+                            clawExtension: _clawController.value,
+                            isCargoVisible: _isCargoVisible,
+                            hasCargo: widget.hasCargo,
+                            isFlying: isCurrentlyFlying,
+                            status: widget.status,
                           ),
                         ),
-                      ),
+
+                        // Counter-rotating telemetry altitude badge
+                        Positioned(
+                          bottom: -(widget.size * 0.1),
+                          child: AnimatedRotation(
+                            turns: -widget.direction.angleInRadians / (2 * math.pi),
+                            duration: const Duration(milliseconds: 300),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: widget.size * 0.0875,
+                                vertical: widget.size * 0.025,
+                              ),
+                              decoration: BoxDecoration(
+                                color: CyberTheme.cardBg.withValues(alpha: 0.95),
+                                borderRadius: BorderRadius.circular(20.0),
+                                border: Border.all(
+                                  color: isCurrentlyFlying
+                                      ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
+                                      : CyberTheme.borderTranslucent,
+                                  width: 1.0,
+                                ),
+                              ),
+                              child: Text(
+                                'ALT ${widget.height}',
+                                style: CyberTheme.fontCode(
+                                  size: math.max(6.0, widget.size * 0.1),
+                                  color: isCurrentlyFlying
+                                      ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
+                                      : CyberTheme.textMuted,
+                                ).copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );

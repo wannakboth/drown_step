@@ -188,61 +188,6 @@ class GameGridPainter extends CustomPainter {
       Offset(targetCenter.dx - textPainter.width / 2, targetCenter.dy - textPainter.height / 2),
     );
 
-    // 5. Draw Cargo Crate on grid if not picked up yet
-    if (!hasCargo) {
-      final double cargoBoxSize = math.min(cellWidth, cellHeight) * 0.34;
-      final cargoRect = Rect.fromCenter(
-        center: cargoCenter,
-        width: cargoBoxSize,
-        height: cargoBoxSize,
-      );
-
-      // Pulse highlight ring around cargo
-      final cargoPulse = 1.0 + 0.1 * math.sin((animationValue + 0.5) * 2 * math.pi);
-      final cargoPulsePaint = Paint()
-        ..color = CyberTheme.neonYellow.withValues(alpha: 0.25 * (2.0 - cargoPulse))
-        ..strokeWidth = 1.2
-        ..style = PaintingStyle.stroke;
-      canvas.drawCircle(cargoCenter, cargoBoxSize * 0.8 * cargoPulse, cargoPulsePaint);
-
-      // Draw Crate body
-      final cargoPaint = Paint()
-        ..color = CyberTheme.neonYellow.withValues(alpha: 0.15)
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(RRect.fromRectAndRadius(cargoRect, const Radius.circular(5.0)), cargoPaint);
-
-      final cargoBorder = Paint()
-        ..color = CyberTheme.neonYellow
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
-      canvas.drawRRect(RRect.fromRectAndRadius(cargoRect, const Radius.circular(5.0)), cargoBorder);
-
-      // Warning stripe patterns inside crate
-      final stripePaint = Paint()
-        ..color = CyberTheme.neonYellow.withValues(alpha: 0.5)
-        ..strokeWidth = 1.5;
-      canvas.drawLine(cargoRect.topLeft, cargoRect.bottomRight, stripePaint);
-      canvas.drawLine(cargoRect.bottomLeft, cargoRect.topRight, stripePaint);
-
-      // Text Label "CARGO"
-      final cargoTextPainter = TextPainter(
-        text: TextSpan(
-          text: 'CARGO',
-          style: TextStyle(
-            color: CyberTheme.neonYellow,
-            fontSize: 8.0,
-            fontFamily: 'ShareTechMono',
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      cargoTextPainter.layout();
-      cargoTextPainter.paint(
-        canvas,
-        Offset(cargoCenter.dx - cargoTextPainter.width / 2, cargoCenter.dy + cargoBoxSize / 2 + 3.0),
-      );
-    }
 
     // 6. Draw Obstacles (Buildings)
     for (final obs in level.obstacles) {
