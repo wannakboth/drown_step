@@ -212,16 +212,20 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
                       alignment: Alignment.center,
                       clipBehavior: Clip.none,
                       children: [
-                        // Thruster engine glow beneath drone
-                        if (isCurrentlyFlying || entryVal > 0.05)
+                        // Thruster engine glow or status glow beneath drone
+                        if (isCurrentlyFlying || entryVal > 0.05 || widget.status == GameStatus.crashed || widget.status == GameStatus.success)
                           Container(
                             width: widget.size * 0.48,
                             height: widget.size * 0.48,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               boxShadow: CyberTheme.neonGlow(
-                                widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan,
-                                radius: widget.size * 0.3 * (isCurrentlyFlying ? 1.0 : entryVal),
+                                widget.status == GameStatus.crashed
+                                    ? Colors.redAccent
+                                    : (widget.status == GameStatus.success
+                                        ? CyberTheme.neonGreen
+                                        : (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)),
+                                radius: widget.size * 0.3 * (isCurrentlyFlying ? 1.0 : (widget.status != GameStatus.idle ? 1.0 : entryVal)),
                               ),
                             ),
                           ),
@@ -254,9 +258,13 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
                                 color: CyberTheme.cardBg.withValues(alpha: 0.95),
                                 borderRadius: BorderRadius.circular(20.0),
                                 border: Border.all(
-                                  color: isCurrentlyFlying
-                                      ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
-                                      : CyberTheme.borderTranslucent,
+                                  color: widget.status == GameStatus.crashed
+                                      ? Colors.redAccent
+                                      : (widget.status == GameStatus.success
+                                          ? CyberTheme.neonGreen
+                                          : (isCurrentlyFlying
+                                              ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
+                                              : CyberTheme.borderTranslucent)),
                                   width: 1.0,
                                 ),
                               ),
@@ -264,9 +272,13 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
                                 'ALT ${widget.height}',
                                 style: CyberTheme.fontCode(
                                   size: math.max(6.0, widget.size * 0.1),
-                                  color: isCurrentlyFlying
-                                      ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
-                                      : CyberTheme.textMuted,
+                                  color: widget.status == GameStatus.crashed
+                                      ? Colors.redAccent
+                                      : (widget.status == GameStatus.success
+                                          ? CyberTheme.neonGreen
+                                          : (isCurrentlyFlying
+                                              ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
+                                              : CyberTheme.textMuted)),
                                 ).copyWith(fontWeight: FontWeight.bold),
                               ),
                             ),
@@ -310,8 +322,10 @@ class _CustomDronePainter extends CustomPainter {
 
     // Color definitions based on status
     final primaryColor = status == GameStatus.crashed
-        ? CyberTheme.neonPink
-        : (hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan);
+        ? Colors.redAccent
+        : (status == GameStatus.success
+            ? CyberTheme.neonGreen
+            : (hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan));
 
     // 1. Draw carbon-fiber quadcopter arms
     final armPaint = Paint()
@@ -424,8 +438,10 @@ class _CustomDronePainter extends CustomPainter {
 
     // LED Status Indicator Light (Points North/Up)
     final ledColor = status == GameStatus.crashed
-        ? CyberTheme.neonPink
-        : (isFlying ? CyberTheme.neonGreen : primaryColor);
+        ? Colors.redAccent
+        : (status == GameStatus.success
+            ? CyberTheme.neonGreen
+            : (isFlying ? CyberTheme.neonGreen : primaryColor));
 
     final ledPaint = Paint()
       ..color = ledColor

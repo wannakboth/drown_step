@@ -312,6 +312,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 pathHistory: state.pathHistory,
                                 animationValue: _gridAnimationController.value,
                                 hasCargo: state.hasCargo,
+                                status: state.status,
                               ),
                             ),
                             CargoBoxWidget(

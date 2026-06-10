@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/level.dart';
 import '../theme/colors.dart';
-
+import '../providers/game_state.dart';
 class GameGridPainter extends CustomPainter {
   final Level level;
   final int droneX;
@@ -12,6 +12,7 @@ class GameGridPainter extends CustomPainter {
   final List<Offset> pathHistory;
   final double animationValue; // For pulsing and spinning animations
   final bool hasCargo; // Determines if cargo is still on grid or picked up
+  final GameStatus status;
 
   GameGridPainter({
     required this.level,
@@ -22,6 +23,7 @@ class GameGridPainter extends CustomPainter {
     required this.pathHistory,
     required this.animationValue,
     required this.hasCargo,
+    required this.status,
   });
 
   @override
@@ -121,13 +123,17 @@ class GameGridPainter extends CustomPainter {
     final pulseScale = 1.0 + 0.08 * math.sin(animationValue * 2 * math.pi);
 
     final padGlowPaint = Paint()
-      ..color = CyberTheme.neonGreen.withValues(alpha: 0.06 * (2.0 - pulseScale))
+      ..color = status == GameStatus.success
+          ? CyberTheme.neonGreen.withValues(alpha: 0.25)
+          : CyberTheme.neonGreen.withValues(alpha: 0.06 * (2.0 - pulseScale))
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(targetCenter, padRadius * pulseScale, padGlowPaint);
+    canvas.drawCircle(targetCenter, padRadius * (status == GameStatus.success ? 1.0 : pulseScale), padGlowPaint);
 
     final ringPaint = Paint()
-      ..color = CyberTheme.neonGreen.withValues(alpha: 0.75)
-      ..strokeWidth = 1.5
+      ..color = status == GameStatus.success
+          ? CyberTheme.neonGreen
+          : CyberTheme.neonGreen.withValues(alpha: 0.75)
+      ..strokeWidth = status == GameStatus.success ? 2.5 : 1.5
       ..style = PaintingStyle.stroke;
     canvas.drawCircle(targetCenter, padRadius, ringPaint);
 
@@ -135,8 +141,8 @@ class GameGridPainter extends CustomPainter {
     final bracketLength = padRadius * 0.35;
     final bracketOffset = padRadius * 0.75;
     final bracketPaint = Paint()
-      ..color = CyberTheme.neonGreen
-      ..strokeWidth = 1.8
+      ..color = status == GameStatus.success ? CyberTheme.neonGreen : CyberTheme.neonGreen.withValues(alpha: 0.8)
+      ..strokeWidth = status == GameStatus.success ? 2.5 : 1.8
       ..style = PaintingStyle.stroke;
 
     canvas.drawPath(
@@ -168,10 +174,10 @@ class GameGridPainter extends CustomPainter {
       bracketPaint,
     );
 
-    // Target Text "DROP"
+    // Target Text "DROP" or "DELIVERED"
     final textPainter = TextPainter(
       text: TextSpan(
-        text: 'DROP',
+        text: status == GameStatus.success ? 'SECURED' : 'DROP',
         style: TextStyle(
           color: CyberTheme.neonGreen,
           fontSize: 8.5,
@@ -187,6 +193,52 @@ class GameGridPainter extends CustomPainter {
       canvas,
       Offset(targetCenter.dx - textPainter.width / 2, targetCenter.dy - textPainter.height / 2),
     );
+
+    // 5. Draw Crash / Wrong Landing Highlight
+    if (status == GameStatus.crashed) {
+      final crashRect = Rect.fromLTWH(
+        droneX * cellWidth + 4.0,
+        droneY * cellHeight + 4.0,
+        cellWidth - 8.0,
+        cellHeight - 8.0,
+      );
+      final crashRRect = RRect.fromRectAndRadius(crashRect, const Radius.circular(8.0));
+      
+      final pulse = 0.6 + 0.4 * math.sin(animationValue * 2 * math.pi);
+      
+      canvas.drawRRect(
+        crashRRect,
+        Paint()
+          ..color = Colors.red.withValues(alpha: 0.15 * pulse)
+          ..style = PaintingStyle.fill,
+      );
+      
+      canvas.drawRRect(
+        crashRRect,
+        Paint()
+          ..color = Colors.redAccent
+          ..strokeWidth = 2.0
+          ..style = PaintingStyle.stroke,
+      );
+
+      final center = Offset((droneX + 0.5) * cellWidth, (droneY + 0.5) * cellHeight);
+      final offset = math.min(cellWidth, cellHeight) * 0.22;
+      final crossPaint = Paint()
+        ..color = Colors.redAccent
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round;
+      
+      canvas.drawLine(
+        Offset(center.dx - offset, center.dy - offset),
+        Offset(center.dx + offset, center.dy + offset),
+        crossPaint,
+      );
+      canvas.drawLine(
+        Offset(center.dx + offset, center.dy - offset),
+        Offset(center.dx - offset, center.dy + offset),
+        crossPaint,
+      );
+    }
 
 
     // 6. Draw Obstacles (Buildings)
