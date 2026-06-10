@@ -4,6 +4,73 @@ import '../models/program_block.dart';
 import '../providers/game_state.dart';
 import '../theme/colors.dart';
 
+class DraggedBlockIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setDraggedBlockId(String? id) => state = id;
+}
+
+final _draggedBlockIdProvider = NotifierProvider<DraggedBlockIdNotifier, String?>(
+  DraggedBlockIdNotifier.new,
+);
+
+Widget _buildInsertDropTarget(int index, String? parentId, bool isElse, GameStateNotifier notifier) {
+  return DragTarget<ProgramBlock>(
+    onWillAcceptWithDetails: (details) => true,
+    onAcceptWithDetails: (details) {
+      final incoming = details.data;
+      if (incoming.id.isEmpty) {
+        final newBlock = incoming.copyWith(id: 'block_${DateTime.now().microsecondsSinceEpoch}');
+        notifier.addBlock(newBlock, parentId: parentId, isElse: isElse, index: index);
+      } else {
+        notifier.moveBlock(incoming.id, targetParentId: parentId, isElse: isElse, index: index);
+      }
+    },
+    builder: (context, candidateData, rejectedData) {
+      final isHovered = candidateData.isNotEmpty;
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeInOut,
+        height: isHovered ? 48.0 : 4.0,
+        margin: EdgeInsets.symmetric(vertical: isHovered ? 6.0 : 1.0),
+        decoration: BoxDecoration(
+          color: isHovered ? CyberTheme.neonCyan.withValues(alpha: 0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6.0),
+          border: isHovered
+              ? Border.all(color: CyberTheme.neonCyan.withValues(alpha: 0.8), width: 1.5)
+              : null,
+          boxShadow: isHovered
+              ? [
+                  BoxShadow(
+                    color: CyberTheme.neonCyan.withValues(alpha: 0.25),
+                    blurRadius: 8.0,
+                    spreadRadius: 1.0,
+                  )
+                ]
+              : null,
+        ),
+        child: isHovered
+            ? Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.add_circle_outline, size: 14.0, color: CyberTheme.neonCyan),
+                    const SizedBox(width: 6.0),
+                    Text(
+                      'PLACE HERE',
+                      style: CyberTheme.fontCode(size: 9.0, color: CyberTheme.neonCyan)
+                          .copyWith(fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                    ),
+                  ],
+                ),
+              )
+            : null,
+      );
+    },
+  );
+}
+
 class CommandPanel extends ConsumerStatefulWidget {
   const CommandPanel({super.key});
 
@@ -365,10 +432,10 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
       ),
     );
   }
-
   Widget _buildWorkspace(DroneGameState state, GameStateNotifier notifier) {
     final program = state.program;
     final isRunning = state.status == GameStatus.running;
+    final draggedBlockId = ref.watch(_draggedBlockIdProvider);
 
     return DragTarget<ProgramBlock>(
       onWillAcceptWithDetails: (details) => true,
@@ -399,20 +466,28 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                   physics: const BouncingScrollPhysics(),
                   itemCount: program.length,
                   itemBuilder: (context, idx) {
-                    return Column(
-                      children: [
-                        _buildInsertDropTarget(idx, null, false, notifier),
-                        VisualBlock(
-                          block: program[idx],
-                          parentId: null,
-                          isElse: false,
-                          index: idx,
-                          isRunning: isRunning,
-                          activeBlockId: state.activeBlockId,
-                        ),
-                        if (idx == program.length - 1)
-                          _buildInsertDropTarget(idx + 1, null, false, notifier),
-                      ],
+                    final blockItem = program[idx];
+                    final isDragged = draggedBlockId == blockItem.id;
+                    return AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: isDragged
+                          ? const SizedBox.shrink()
+                          : Column(
+                              children: [
+                                _buildInsertDropTarget(idx, null, false, notifier),
+                                VisualBlock(
+                                  block: blockItem,
+                                  parentId: null,
+                                  isElse: false,
+                                  index: idx,
+                                  isRunning: isRunning,
+                                  activeBlockId: state.activeBlockId,
+                                ),
+                                if (idx == program.length - 1)
+                                  _buildInsertDropTarget(idx + 1, null, false, notifier),
+                              ],
+                            ),
                     );
                   },
                 ),
@@ -421,38 +496,7 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
     );
   }
 
-  Widget _buildInsertDropTarget(int index, String? parentId, bool isElse, GameStateNotifier notifier) {
-    return DragTarget<ProgramBlock>(
-      onWillAcceptWithDetails: (details) => true,
-      onAcceptWithDetails: (details) {
-        final incoming = details.data;
-        if (incoming.id.isEmpty) {
-          final newBlock = incoming.copyWith(id: 'block_${DateTime.now().microsecondsSinceEpoch}');
-          notifier.addBlock(newBlock, parentId: parentId, isElse: isElse, index: index);
-        } else {
-          notifier.moveBlock(incoming.id, targetParentId: parentId, isElse: isElse, index: index);
-        }
-      },
-      builder: (context, candidateData, rejectedData) {
-        final isHovered = candidateData.isNotEmpty;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: isHovered ? 20.0 : 4.0,
-          margin: const EdgeInsets.symmetric(vertical: 2.0),
-          decoration: BoxDecoration(
-            color: isHovered ? CyberTheme.neonCyan.withValues(alpha: 0.25) : Colors.transparent,
-            borderRadius: BorderRadius.circular(4.0),
-            border: isHovered ? Border.all(color: CyberTheme.neonCyan) : null,
-          ),
-          child: isHovered
-              ? const Center(
-                  child: Icon(Icons.add, size: 12.0, color: CyberTheme.neonCyan),
-                )
-              : const SizedBox.shrink(),
-        );
-      },
-    );
-  }
+
 
   Widget _buildEmptyQueuePlaceholder() {
     return Center(
@@ -506,27 +550,49 @@ class VisualBlock extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(gameStateProvider.notifier);
     final isActive = activeBlockId == block.id;
+    final draggedBlockId = ref.watch(_draggedBlockIdProvider);
+    final isCurrentlyDragged = draggedBlockId == block.id;
 
     return Draggable<ProgramBlock>(
       data: block,
       ignoringFeedbackSemantics: true,
       maxSimultaneousDrags: isRunning ? 0 : 1,
+      onDragStarted: () {
+        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(block.id);
+      },
+      onDragEnd: (_) {
+        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(null);
+      },
+      onDraggableCanceled: (_, _) {
+        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(null);
+      },
+      onDragCompleted: () {
+        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(null);
+      },
       feedback: Material(
         color: Colors.transparent,
-        child: Opacity(
-          opacity: 0.75,
-          child: _buildCardContent(context, notifier, isActive, isFeedback: true),
+        child: Transform.rotate(
+          angle: -0.02,
+          child: Transform.scale(
+            scale: 1.04,
+            child: Opacity(
+              opacity: 0.85,
+              child: _buildCardContent(context, ref, notifier, isActive, isFeedback: true),
+            ),
+          ),
         ),
       ),
-      childWhenDragging: Opacity(
-        opacity: 0.2,
-        child: _buildCardContent(context, notifier, isActive),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        child: isCurrentlyDragged
+            ? const SizedBox.shrink()
+            : _buildCardContent(context, ref, notifier, isActive),
       ),
-      child: _buildCardContent(context, notifier, isActive),
     );
   }
 
-  Widget _buildCardContent(BuildContext context, GameStateNotifier notifier, bool isActive, {bool isFeedback = false}) {
+  Widget _buildCardContent(BuildContext context, WidgetRef ref, GameStateNotifier notifier, bool isActive, {bool isFeedback = false}) {
     Color blockColor;
     IconData icon;
     String title;
@@ -576,7 +642,7 @@ class VisualBlock extends ConsumerWidget {
             Text('TIMES', style: CyberTheme.fontCode(size: 9.5, color: Colors.white70)),
           ],
         );
-        nestedBody = _buildNestedList(block.body, false, notifier);
+        nestedBody = _buildNestedList(ref, block.body, false, notifier);
         break;
 
       case BlockType.whileLoop:
@@ -608,7 +674,7 @@ class VisualBlock extends ConsumerWidget {
             ),
           ),
         );
-        nestedBody = _buildNestedList(block.body, false, notifier);
+        nestedBody = _buildNestedList(ref, block.body, false, notifier);
         break;
 
       case BlockType.ifElse:
@@ -643,7 +709,7 @@ class VisualBlock extends ConsumerWidget {
         nestedBody = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildNestedList(block.body, false, notifier),
+            _buildNestedList(ref, block.body, false, notifier),
             Padding(
               padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
               child: Row(
@@ -654,7 +720,7 @@ class VisualBlock extends ConsumerWidget {
                 ],
               ),
             ),
-            _buildNestedList(block.elseBody, true, notifier),
+            _buildNestedList(ref, block.elseBody, true, notifier),
           ],
         );
         break;
@@ -727,7 +793,9 @@ class VisualBlock extends ConsumerWidget {
     );
   }
 
-  Widget _buildNestedList(List<ProgramBlock> children, bool nestedIsElse, GameStateNotifier notifier) {
+  Widget _buildNestedList(WidgetRef ref, List<ProgramBlock> children, bool nestedIsElse, GameStateNotifier notifier) {
+    final draggedBlockId = ref.watch(_draggedBlockIdProvider);
+
     return DragTarget<ProgramBlock>(
       onWillAcceptWithDetails: (details) {
         // Prevent recursive loops: a block cannot be accepted inside itself or inside its children
@@ -786,20 +854,28 @@ class VisualBlock extends ConsumerWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: children.length,
                   itemBuilder: (context, idx) {
-                    return Column(
-                      children: [
-                        _buildInsertDropTarget(idx, block.id, nestedIsElse, notifier),
-                        VisualBlock(
-                          block: children[idx],
-                          parentId: block.id,
-                          isElse: nestedIsElse,
-                          index: idx,
-                          isRunning: isRunning,
-                          activeBlockId: activeBlockId,
-                        ),
-                        if (idx == children.length - 1)
-                          _buildInsertDropTarget(idx + 1, block.id, nestedIsElse, notifier),
-                      ],
+                    final blockItem = children[idx];
+                    final isDragged = draggedBlockId == blockItem.id;
+                    return AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: isDragged
+                          ? const SizedBox.shrink()
+                          : Column(
+                              children: [
+                                _buildInsertDropTarget(idx, block.id, nestedIsElse, notifier),
+                                VisualBlock(
+                                  block: blockItem,
+                                  parentId: block.id,
+                                  isElse: nestedIsElse,
+                                  index: idx,
+                                  isRunning: isRunning,
+                                  activeBlockId: activeBlockId,
+                                ),
+                                if (idx == children.length - 1)
+                                  _buildInsertDropTarget(idx + 1, block.id, nestedIsElse, notifier),
+                              ],
+                            ),
                     );
                   },
                 ),
@@ -808,40 +884,4 @@ class VisualBlock extends ConsumerWidget {
     );
   }
 
-  Widget _buildInsertDropTarget(int index, String parentBlockId, bool isElse, GameStateNotifier notifier) {
-    return DragTarget<ProgramBlock>(
-      onWillAcceptWithDetails: (details) {
-        final incoming = details.data;
-        if (incoming.id == parentBlockId) return false;
-        return true;
-      },
-      onAcceptWithDetails: (details) {
-        final incoming = details.data;
-        if (incoming.id.isEmpty) {
-          final newBlock = incoming.copyWith(id: 'block_${DateTime.now().microsecondsSinceEpoch}');
-          notifier.addBlock(newBlock, parentId: parentBlockId, isElse: isElse, index: index);
-        } else {
-          notifier.moveBlock(incoming.id, targetParentId: parentBlockId, isElse: isElse, index: index);
-        }
-      },
-      builder: (context, candidateData, rejectedData) {
-        final isHovered = candidateData.isNotEmpty;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: isHovered ? 20.0 : 4.0,
-          margin: const EdgeInsets.symmetric(vertical: 2.0),
-          decoration: BoxDecoration(
-            color: isHovered ? CyberTheme.neonCyan.withValues(alpha: 0.25) : Colors.transparent,
-            borderRadius: BorderRadius.circular(4.0),
-            border: isHovered ? Border.all(color: CyberTheme.neonCyan) : null,
-          ),
-          child: isHovered
-              ? const Center(
-                  child: Icon(Icons.add, size: 12.0, color: CyberTheme.neonCyan),
-                )
-              : const SizedBox.shrink(),
-        );
-      },
-    );
-  }
 }
