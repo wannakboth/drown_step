@@ -552,22 +552,23 @@ class VisualBlock extends ConsumerWidget {
     final isActive = activeBlockId == block.id;
     final draggedBlockId = ref.watch(_draggedBlockIdProvider);
     final isCurrentlyDragged = draggedBlockId == block.id;
+    final draggedBlockNotifier = ref.read(_draggedBlockIdProvider.notifier);
 
     return Draggable<ProgramBlock>(
       data: block,
       ignoringFeedbackSemantics: true,
       maxSimultaneousDrags: isRunning ? 0 : 1,
       onDragStarted: () {
-        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(block.id);
+        draggedBlockNotifier.setDraggedBlockId(block.id);
       },
       onDragEnd: (_) {
-        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(null);
+        draggedBlockNotifier.setDraggedBlockId(null);
       },
       onDraggableCanceled: (_, _) {
-        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(null);
+        draggedBlockNotifier.setDraggedBlockId(null);
       },
       onDragCompleted: () {
-        ref.read(_draggedBlockIdProvider.notifier).setDraggedBlockId(null);
+        draggedBlockNotifier.setDraggedBlockId(null);
       },
       feedback: Material(
         color: Colors.transparent,
