@@ -72,22 +72,10 @@ Widget _buildInsertDropTarget(WidgetRef ref, int index, String? parentId, bool i
           ),
         );
       } else {
-        height = 18.0;
-        margin = const EdgeInsets.symmetric(vertical: 2.0);
-        decoration = BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(4.0),
-        );
-        child = Center(
-          child: Container(
-            width: 80.0,
-            height: 2.0,
-            decoration: BoxDecoration(
-              color: CyberTheme.neonCyan.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(1.0),
-            ),
-          ),
-        );
+        height = 6.0;
+        margin = EdgeInsets.zero;
+        decoration = const BoxDecoration(color: Colors.transparent);
+        child = const SizedBox.shrink();
       }
 
       return AnimatedContainer(
