@@ -74,7 +74,9 @@ Widget _buildInsertDropTarget(WidgetRef ref, int index, String? parentId, bool i
       } else {
         height = 6.0;
         margin = EdgeInsets.zero;
-        decoration = const BoxDecoration(color: Colors.transparent);
+        decoration = const BoxDecoration(
+          color: Colors.transparent,
+        );
         child = const SizedBox.shrink();
       }
 
