@@ -458,6 +458,32 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
     final isRunning = state.status == GameStatus.running;
     final draggedBlockId = ref.watch(_draggedBlockIdProvider);
 
+    final List<Widget> listItems = [];
+    for (int i = 0; i < program.length; i++) {
+      final blockItem = program[i];
+      final isDragged = draggedBlockId == blockItem.id;
+      listItems.add(_buildInsertDropTarget(ref, i, null, false, notifier));
+      listItems.add(
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: isDragged
+              ? const SizedBox.shrink()
+              : VisualBlock(
+                  block: blockItem,
+                  parentId: null,
+                  isElse: false,
+                  index: i,
+                  isRunning: isRunning,
+                  activeBlockId: state.activeBlockId,
+                ),
+        ),
+      );
+    }
+    if (program.isNotEmpty) {
+      listItems.add(_buildInsertDropTarget(ref, program.length, null, false, notifier));
+    }
+
     return DragTarget<ProgramBlock>(
       onWillAcceptWithDetails: (details) => true,
       onAcceptWithDetails: (details) {
@@ -483,34 +509,9 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
           padding: const EdgeInsets.all(8.0),
           child: program.isEmpty
               ? _buildEmptyQueuePlaceholder()
-              : ListView.builder(
+              : ListView(
                   physics: const BouncingScrollPhysics(),
-                  itemCount: program.length,
-                  itemBuilder: (context, idx) {
-                    final blockItem = program[idx];
-                    final isDragged = draggedBlockId == blockItem.id;
-                    return AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      child: isDragged
-                          ? const SizedBox.shrink()
-                          : Column(
-                              children: [
-                                _buildInsertDropTarget(ref, idx, null, false, notifier),
-                                VisualBlock(
-                                  block: blockItem,
-                                  parentId: null,
-                                  isElse: false,
-                                  index: idx,
-                                  isRunning: isRunning,
-                                  activeBlockId: state.activeBlockId,
-                                ),
-                                if (idx == program.length - 1)
-                                  _buildInsertDropTarget(ref, idx + 1, null, false, notifier),
-                              ],
-                            ),
-                    );
-                  },
+                  children: listItems,
                 ),
         );
       },
@@ -818,6 +819,32 @@ class VisualBlock extends ConsumerWidget {
   Widget _buildNestedList(WidgetRef ref, List<ProgramBlock> children, bool nestedIsElse, GameStateNotifier notifier) {
     final draggedBlockId = ref.watch(_draggedBlockIdProvider);
 
+    final List<Widget> nestedItems = [];
+    for (int i = 0; i < children.length; i++) {
+      final blockItem = children[i];
+      final isDragged = draggedBlockId == blockItem.id;
+      nestedItems.add(_buildInsertDropTarget(ref, i, block.id, nestedIsElse, notifier));
+      nestedItems.add(
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: isDragged
+              ? const SizedBox.shrink()
+              : VisualBlock(
+                  block: blockItem,
+                  parentId: block.id,
+                  isElse: nestedIsElse,
+                  index: i,
+                  isRunning: isRunning,
+                  activeBlockId: activeBlockId,
+                ),
+        ),
+      );
+    }
+    if (children.isNotEmpty) {
+      nestedItems.add(_buildInsertDropTarget(ref, children.length, block.id, nestedIsElse, notifier));
+    }
+
     return DragTarget<ProgramBlock>(
       onWillAcceptWithDetails: (details) {
         // Prevent recursive loops: a block cannot be accepted inside itself or inside its children
@@ -871,35 +898,8 @@ class VisualBlock extends ConsumerWidget {
                     style: CyberTheme.fontCode(size: 9.0, color: Colors.white30),
                   ),
                 )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: children.length,
-                  itemBuilder: (context, idx) {
-                    final blockItem = children[idx];
-                    final isDragged = draggedBlockId == blockItem.id;
-                    return AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      child: isDragged
-                          ? const SizedBox.shrink()
-                          : Column(
-                              children: [
-                                _buildInsertDropTarget(ref, idx, block.id, nestedIsElse, notifier),
-                                VisualBlock(
-                                  block: blockItem,
-                                  parentId: block.id,
-                                  isElse: nestedIsElse,
-                                  index: idx,
-                                  isRunning: isRunning,
-                                  activeBlockId: activeBlockId,
-                                ),
-                                if (idx == children.length - 1)
-                                  _buildInsertDropTarget(ref, idx + 1, block.id, nestedIsElse, notifier),
-                              ],
-                            ),
-                    );
-                  },
+              : Column(
+                  children: nestedItems,
                 ),
         );
       },

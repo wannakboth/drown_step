@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum Direction {
-  north,
-  east,
-  south,
-  west,
-}
+enum Direction { north, east, south, west }
 
 extension DirectionExtension on Direction {
   double get angleInRadians {
@@ -57,7 +52,12 @@ class EnergyCell {
   final int height; // Altitude needed to collect
   final int charge; // Battery restored upon collecting (e.g. 5)
 
-  const EnergyCell({required this.x, required this.y, required this.height, this.charge = 5});
+  const EnergyCell({
+    required this.x,
+    required this.y,
+    required this.height,
+    this.charge = 5,
+  });
 }
 
 class Level {
@@ -105,8 +105,10 @@ class Level {
     Level(
       id: 1,
       title: 'FIRST LIFTOFF',
-      description: 'Acquire the cargo box at (0, 2) and deliver it to the target pad at (0, 0).',
-      hint: 'Use [Takeoff], [Move Forward] twice to reach the box, then [Land] to pick it up. Takeoff again, move forward twice, and [Land] to finish.',
+      description:
+          'Acquire the cargo box at (0, 2) and deliver it to the target pad at (0, 0).',
+      hint:
+          'Use [Takeoff], [Move Forward] twice to reach the box, then [Land] to pick it up. Takeoff again, move forward twice, and [Land] to finish.',
       gridWidth: 5,
       gridHeight: 5,
       startX: 0,
@@ -124,8 +126,10 @@ class Level {
     Level(
       id: 2,
       title: 'TURNING PRACTICE',
-      description: 'Rotate to the right, collect the cargo box, rotate right again, and deliver to the pad.',
-      hint: 'Yaw right at the start, fly to the cargo box, pick it up, yaw right again, and fly to the landing pad.',
+      description:
+          'Rotate to the right, collect the cargo box, rotate right again, and deliver to the pad.',
+      hint:
+          'Yaw right at the start, fly to the cargo box, pick it up, yaw right again, and fly to the landing pad.',
       gridWidth: 5,
       gridHeight: 5,
       startX: 0,
@@ -143,8 +147,10 @@ class Level {
     Level(
       id: 3,
       title: 'THE RIGHT PATH',
-      description: 'Fly around buildings (height 1) to collect the cargo crate and deliver it to the target.',
-      hint: 'Rotate to dodge the buildings. Don\'t fly straight into obstacles at height 0!',
+      description:
+          'Fly around buildings (height 1) to collect the cargo crate and deliver it to the target.',
+      hint:
+          'Rotate to dodge the buildings. Don\'t fly straight into obstacles at height 0!',
       gridWidth: 6,
       gridHeight: 6,
       startX: 0,
@@ -166,8 +172,10 @@ class Level {
     Level(
       id: 4,
       title: 'OVER THE WALL',
-      description: 'Ascend to fly over the obstacle wall to collect the cargo block and deliver to target.',
-      hint: 'Ascend to height 2 to fly over the obstacle wall, then descend back to height 0 to land.',
+      description:
+          'Ascend to fly over the obstacle wall to collect the cargo block and deliver to target.',
+      hint:
+          'Ascend to height 2 to fly over the obstacle wall, then descend back to height 0 to land.',
       gridWidth: 5,
       gridHeight: 7,
       startX: 2,
@@ -191,8 +199,10 @@ class Level {
     Level(
       id: 5,
       title: 'POWER HARVEST',
-      description: 'Collect the cargo and harvest floating energy cells to recharge battery on the way to the pad.',
-      hint: 'Harvest both energy cells to stay powered. Fly over the energy cells at height 1 to collect them.',
+      description:
+          'Collect the cargo and harvest floating energy cells to recharge battery on the way to the pad.',
+      hint:
+          'Harvest both energy cells to stay powered. Fly over the energy cells at height 1 to collect them.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -216,8 +226,10 @@ class Level {
     Level(
       id: 6,
       title: 'HEIGHT MATRIX',
-      description: 'Climb elevations to collect the cargo box floating at height 3, then deliver it to target pad.',
-      hint: 'The cargo block is floating at altitude 3 on top of a building. Climb to height 3 before picking it up!',
+      description:
+          'Climb elevations to collect the cargo box floating at height 3, then deliver it to target pad.',
+      hint:
+          'The cargo block is floating at altitude 3 on top of a building. Climb to height 3 before picking it up!',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -235,16 +247,16 @@ class Level {
         Obstacle(x: 4, y: 2, height: 2),
         Obstacle(x: 5, y: 2, height: 1),
       ],
-      energyCells: [
-        EnergyCell(x: 2, y: 4, height: 3, charge: 12),
-      ],
+      energyCells: [EnergyCell(x: 2, y: 4, height: 3, charge: 12)],
       star3Target: 20,
     ),
     Level(
       id: 7,
       title: 'SPIRAL CORRIDOR',
-      description: 'Navigate a spiral path to reach the box in the center, then deliver it to the target pad.',
-      hint: 'Follow the spiral path winding inward. Be careful not to bump into the high walls.',
+      description:
+          'Navigate a spiral path to reach the box in the center, then deliver it to the target pad.',
+      hint:
+          'Follow the spiral path winding inward. Be careful not to bump into the high walls.',
       gridWidth: 6,
       gridHeight: 6,
       startX: 0,
@@ -274,8 +286,10 @@ class Level {
     Level(
       id: 8,
       title: 'ZIGZAG LANE',
-      description: 'Steer the drone in a zigzag pattern around walls to retrieve the box and reach the target.',
-      hint: 'Alternate yaw rotations (left and right) to slalom through the walls.',
+      description:
+          'Steer the drone in a zigzag pattern around walls to retrieve the box and reach the target.',
+      hint:
+          'Alternate yaw rotations (left and right) to slalom through the walls.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -303,8 +317,10 @@ class Level {
     Level(
       id: 9,
       title: 'SHUTTLE RUN',
-      description: 'Extremely limited battery. Use a Repeat block loop to fetch multiple energy cells to survive.',
-      hint: 'Try using a [Repeat 3] block enclosing a [Move Forward] and [Move Forward] to grab energy cells efficiently.',
+      description:
+          'Extremely limited battery. Use a Repeat block loop to fetch multiple energy cells to survive.',
+      hint:
+          'Try using a [Repeat 3] block enclosing a [Move Forward] and [Move Forward] to grab energy cells efficiently.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -330,8 +346,10 @@ class Level {
     Level(
       id: 10,
       title: 'ALLEY WAY',
-      description: 'Fly through a narrow canyon. Adjust altitude dynamically to pick up cells and box.',
-      hint: 'Steer straight and use [Ascend] / [Descend] to navigate the mountain peaks.',
+      description:
+          'Fly through a narrow canyon. Adjust altitude dynamically to pick up cells and box.',
+      hint:
+          'Steer straight and use [Ascend] / [Descend] to navigate the mountain peaks.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -350,16 +368,16 @@ class Level {
         Obstacle(x: 5, y: 2, height: 3),
         Obstacle(x: 5, y: 4, height: 3),
       ],
-      energyCells: [
-        EnergyCell(x: 3, y: 3, height: 2, charge: 10),
-      ],
+      energyCells: [EnergyCell(x: 3, y: 3, height: 2, charge: 10)],
       star3Target: 16,
     ),
     Level(
       id: 11,
       title: 'THE BRIDGE',
-      description: 'Cross the obstacle bridge. Use Repeat blocks to execute symmetric actions efficiently.',
-      hint: 'Combine [Repeat] blocks to execute symmetric movements on both sides of the bridge.',
+      description:
+          'Cross the obstacle bridge. Use Repeat blocks to execute symmetric actions efficiently.',
+      hint:
+          'Combine [Repeat] blocks to execute symmetric movements on both sides of the bridge.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -384,8 +402,10 @@ class Level {
     Level(
       id: 12,
       title: 'MAZE RUNNER',
-      description: 'Retrieve the box from a labyrinth using precise yaw rotations and steps.',
-      hint: 'This labyrinth has multiple turns. Track your position relative to the grid coordinates.',
+      description:
+          'Retrieve the box from a labyrinth using precise yaw rotations and steps.',
+      hint:
+          'This labyrinth has multiple turns. Track your position relative to the grid coordinates.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -416,8 +436,10 @@ class Level {
     Level(
       id: 13,
       title: 'ENERGY DRAIN',
-      description: 'A large grid with high battery consumption. Map your path around mountains to grab all energy cells.',
-      hint: 'Collect all 4 energy cells to keep your battery from hitting zero. Plan the shortest path!',
+      description:
+          'A large grid with high battery consumption. Map your path around mountains to grab all energy cells.',
+      hint:
+          'Collect all 4 energy cells to keep your battery from hitting zero. Plan the shortest path!',
       gridWidth: 9,
       gridHeight: 9,
       startX: 0,
@@ -447,8 +469,10 @@ class Level {
     Level(
       id: 14,
       title: 'DOUBLE WALL',
-      description: 'Two layers of walls block your way. Rise over them, pick up battery cells, and deliver the cargo.',
-      hint: 'Climb high to clear the double barrier. Grab the energy cell at height 4 for extra power.',
+      description:
+          'Two layers of walls block your way. Rise over them, pick up battery cells, and deliver the cargo.',
+      hint:
+          'Climb high to clear the double barrier. Grab the energy cell at height 4 for extra power.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -482,8 +506,10 @@ class Level {
     Level(
       id: 15,
       title: 'SINE WAVE',
-      description: 'The height of obstacles oscillates: 1, 2, 3, 2, 1. Fly like a wave to collect the cargo block.',
-      hint: 'Use a loop to repeatedly ascend and descend to match the wave-shaped obstacles.',
+      description:
+          'The height of obstacles oscillates: 1, 2, 3, 2, 1. Fly like a wave to collect the cargo block.',
+      hint:
+          'Use a loop to repeatedly ascend and descend to match the wave-shaped obstacles.',
       gridWidth: 9,
       gridHeight: 5,
       startX: 0,
@@ -501,16 +527,16 @@ class Level {
         Obstacle(x: 5, y: 2, height: 2),
         Obstacle(x: 6, y: 2, height: 1),
       ],
-      energyCells: [
-        EnergyCell(x: 4, y: 2, height: 4, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 4, y: 2, height: 4, charge: 15)],
       star3Target: 14,
     ),
     Level(
       id: 16,
       title: 'VERTICAL LABYRINTH',
-      description: 'Navigate tall vertical columns with tight corridors to deliver cargo.',
-      hint: 'Combine vertical height climbing with lateral movements to maneuver through the dense pillars.',
+      description:
+          'Navigate tall vertical columns with tight corridors to deliver cargo.',
+      hint:
+          'Combine vertical height climbing with lateral movements to maneuver through the dense pillars.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 7,
@@ -544,8 +570,10 @@ class Level {
     Level(
       id: 17,
       title: 'CITY GRID',
-      description: 'A metropolitan grid with towering obstacles. Route the drone wisely to deliver the cargo.',
-      hint: 'Fly high over some buildings or navigate around them. Optimize your block count for 3 stars.',
+      description:
+          'A metropolitan grid with towering obstacles. Route the drone wisely to deliver the cargo.',
+      hint:
+          'Fly high over some buildings or navigate around them. Optimize your block count for 3 stars.',
       gridWidth: 9,
       gridHeight: 9,
       startX: 8,
@@ -577,8 +605,10 @@ class Level {
     Level(
       id: 18,
       title: 'MOUNT EVEREST',
-      description: 'Climb a massive central peak. Grab energy cells from heights and land safely on the target.',
-      hint: 'The central peak reaches height 3. Climb up to pick up the cargo at the top.',
+      description:
+          'Climb a massive central peak. Grab energy cells from heights and land safely on the target.',
+      hint:
+          'The central peak reaches height 3. Climb up to pick up the cargo at the top.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -610,8 +640,10 @@ class Level {
     Level(
       id: 19,
       title: 'REPEAT LABYRINTH',
-      description: 'A maze that requires structural loops to reach the box and target pad within 14 blocks.',
-      hint: 'Write a repeating pattern (e.g. Move, Turn, Move) inside a Loop to finish in under 14 blocks.',
+      description:
+          'A maze that requires structural loops to reach the box and target pad within 14 blocks.',
+      hint:
+          'Write a repeating pattern (e.g. Move, Turn, Move) inside a Loop to finish in under 14 blocks.',
       gridWidth: 9,
       gridHeight: 9,
       startX: 0,
@@ -632,16 +664,16 @@ class Level {
         Obstacle(x: 7, y: 3, height: 2),
         Obstacle(x: 7, y: 5, height: 2),
       ],
-      energyCells: [
-        EnergyCell(x: 4, y: 4, height: 1, charge: 10),
-      ],
+      energyCells: [EnergyCell(x: 4, y: 4, height: 1, charge: 10)],
       star3Target: 14,
     ),
     Level(
       id: 20,
       title: 'ULTIMATE FLIGHT TEST',
-      description: 'The final exam. Combine loops, rotations, altitude, and energy harvesting to win.',
-      hint: 'Use a nested Repeat loop structure to manage battery, navigate obstacles, and deliver the cargo.',
+      description:
+          'The final exam. Combine loops, rotations, altitude, and energy harvesting to win.',
+      hint:
+          'Use a nested Repeat loop structure to manage battery, navigate obstacles, and deliver the cargo.',
       gridWidth: 10,
       gridHeight: 10,
       startX: 0,
