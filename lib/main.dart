@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/views/game_screen.dart';
+import 'src/views/home_screen.dart';
 import 'src/theme/colors.dart';
+import 'src/providers/game_state.dart';
 
 void main() {
   runApp(
@@ -11,11 +13,13 @@ void main() {
   );
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends ConsumerWidget {
   const MainApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeScreen = ref.watch(appScreenProvider);
+
     return MaterialApp(
       title: 'DroneStep',
       debugShowCheckedModeBanner: false,
@@ -24,7 +28,9 @@ class MainApp extends StatelessWidget {
         scaffoldBackgroundColor: CyberTheme.darkBg,
         primaryColor: CyberTheme.neonCyan,
       ),
-      home: const GameScreen(),
+      home: activeScreen == AppScreen.home
+          ? const HomeScreen()
+          : const GameScreen(),
     );
   }
 }

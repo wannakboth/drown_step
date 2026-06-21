@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/level.dart';
 import '../models/program_block.dart';
 
@@ -154,6 +157,46 @@ class GameStateNotifier extends Notifier<DroneGameState> {
 
     final updated = _addBlockToTree(state.program, block, parentId, isElse, index);
     state = state.copyWith(program: updated);
+  }
+
+  bool blockExists(String blockId) {
+    return _findBlockInTree(state.program, blockId) != null;
+  }
+
+  int getBlocksInContainerCount(String? parentId, bool isElse) {
+    if (parentId == null) {
+      return state.program.length;
+    }
+    final parentBlock = _findBlockInTree(state.program, parentId);
+    if (parentBlock == null) return 0;
+    return isElse ? parentBlock.elseBody.length : parentBlock.body.length;
+  }
+
+  int getBlockNestingDepth(String? blockId) {
+    if (blockId == null) return 0;
+    
+    int? search(List<ProgramBlock> blocks, int currentDepth) {
+      for (final block in blocks) {
+        if (block.id == blockId) {
+          return currentDepth;
+        }
+        
+        final isNestingType = block.type == BlockType.repeat ||
+            block.type == BlockType.whileLoop ||
+            block.type == BlockType.ifElse;
+        
+        final nextDepth = isNestingType ? currentDepth + 1 : currentDepth;
+        
+        final bodyResult = search(block.body, nextDepth);
+        if (bodyResult != null) return bodyResult;
+        
+        final elseResult = search(block.elseBody, nextDepth);
+        if (elseResult != null) return elseResult;
+      }
+      return null;
+    }
+    
+    return search(state.program, 0) ?? 0;
   }
 
   void removeBlock(String blockId) {
@@ -369,7 +412,15 @@ class GameStateNotifier extends Notifier<DroneGameState> {
     }
 
     final int baseDelay = isCargoPickup ? 1800 : 1000;
-    final delayMs = (baseDelay / state.speedMultiplier).round();
+    int delayMs;
+    if (state.pc == -1) {
+      // Wait at least 400ms for the 350ms layout expand animation to finish
+      final speedDelay = (baseDelay / state.speedMultiplier).round();
+      delayMs = math.max(400, speedDelay);
+    } else {
+      delayMs = (baseDelay / state.speedMultiplier).round();
+    }
+
     _timer = Timer(Duration(milliseconds: delayMs), () {
       if (state.status == GameStatus.running) {
         executeNextStep();
@@ -638,10 +689,55 @@ class GameStateNotifier extends Notifier<DroneGameState> {
 
 class CurrentLevelNotifier extends Notifier<Level> {
   @override
-  Level build() => Level.predefinedLevels.first;
+  Level build() {
+    final auth = ref.watch(authProvider);
+    final mode = ref.watch(gameModeProvider);
+    final user = auth.currentUser ?? 'guest';
+    final prefs = ref.watch(authProvider.notifier).prefs;
+    
+    final seenTutorial = ref.watch(seenTutorialMissionsProvider);
+    final levels = seenTutorial ? Level.getLevelsForMode(mode) : Level.tutorialMissions;
+    
+    if (prefs != null) {
+      final key = 'dronestep_${user}_last_played_${mode.name}_tutorial_$seenTutorial';
+      final rawVal = prefs.get(key);
+      String? lastPlayedId;
+      if (rawVal is int) {
+        if (seenTutorial) {
+          lastPlayedId = mode == GameMode.hard ? 'H$rawVal' : 'N$rawVal';
+        } else {
+          lastPlayedId = 'T${rawVal.abs()}';
+        }
+        prefs.setString(key, lastPlayedId);
+      } else if (rawVal is String) {
+        lastPlayedId = rawVal;
+      }
+      if (lastPlayedId != null) {
+        final index = levels.indexWhere((lvl) => lvl.id == lastPlayedId);
+        if (index != -1) {
+          return levels[index];
+        }
+      }
+    }
+    
+    final maxUnlocked = seenTutorial ? ref.watch(maxUnlockedLevelProvider) : ref.watch(maxUnlockedTutorialLevelProvider);
+    final index = math.min(maxUnlocked - 1, levels.length - 1);
+    if (index >= 0 && index < levels.length) {
+      return levels[index];
+    }
+    return levels.first;
+  }
 
   void setLevel(Level level) {
     state = level;
+    final auth = ref.read(authProvider);
+    final mode = ref.read(gameModeProvider);
+    final user = auth.currentUser ?? 'guest';
+    final prefs = ref.read(authProvider.notifier).prefs;
+    final seenTutorial = ref.read(seenTutorialMissionsProvider);
+    if (prefs != null) {
+      prefs.setString('dronestep_${user}_last_played_${mode.name}_tutorial_$seenTutorial', level.id);
+    }
   }
 }
 
@@ -651,4 +747,643 @@ final currentLevelProvider = NotifierProvider<CurrentLevelNotifier, Level>(
 
 final gameStateProvider = NotifierProvider<GameStateNotifier, DroneGameState>(
   GameStateNotifier.new,
+);
+
+class ConsoleExpandedNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    ref.listen<DroneGameState>(gameStateProvider, (previous, next) {
+      if (next.status == GameStatus.running && previous?.status != GameStatus.running) {
+        state = false;
+      } else if (next.status == GameStatus.idle && previous?.status != GameStatus.idle) {
+        state = true;
+      }
+    });
+    return true;
+  }
+
+  void setExpanded(bool val) {
+    state = val;
+  }
+}
+
+final consoleExpandedProvider = NotifierProvider<ConsoleExpandedNotifier, bool>(
+  ConsoleExpandedNotifier.new,
+);
+
+class ActiveContainer {
+  final String? parentId;
+  final bool isElse;
+
+  const ActiveContainer({this.parentId, this.isElse = false});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ActiveContainer &&
+          runtimeType == other.runtimeType &&
+          parentId == other.parentId &&
+          isElse == other.isElse;
+
+  @override
+  int get hashCode => parentId.hashCode ^ isElse.hashCode;
+}
+
+class ActiveContainerNotifier extends Notifier<ActiveContainer> {
+  @override
+  ActiveContainer build() {
+    ref.listen<DroneGameState>(gameStateProvider, (previous, next) {
+      if (next.status == GameStatus.running && previous?.status != GameStatus.running) {
+        state = const ActiveContainer();
+      }
+    });
+    return const ActiveContainer();
+  }
+
+  void select(String? parentId, {bool isElse = false}) {
+    state = ActiveContainer(parentId: parentId, isElse: isElse);
+  }
+
+  void reset() {
+    state = const ActiveContainer();
+  }
+}
+
+final activeContainerProvider = NotifierProvider<ActiveContainerNotifier, ActiveContainer>(
+  ActiveContainerNotifier.new,
+);
+
+class LastAddedBlockIdNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setLastAddedId(String? id) {
+    state = id;
+  }
+}
+
+final lastAddedBlockIdProvider = NotifierProvider<LastAddedBlockIdNotifier, String?>(
+  LastAddedBlockIdNotifier.new,
+);
+
+enum AppScreen {
+  home,
+  game,
+}
+
+class AppScreenNotifier extends Notifier<AppScreen> {
+  @override
+  AppScreen build() => AppScreen.home;
+
+  void toScreen(AppScreen screen) {
+    state = screen;
+  }
+}
+
+final appScreenProvider = NotifierProvider<AppScreenNotifier, AppScreen>(
+  AppScreenNotifier.new,
+);
+
+class MaxUnlockedLevelNotifier extends Notifier<int> {
+  @override
+  int build() => 1;
+
+  void unlockLevel(String levelId) {
+    final numStr = levelId.replaceAll(RegExp(r'[^0-9]'), '');
+    final lvlNum = int.tryParse(numStr) ?? 1;
+    if (lvlNum >= state) {
+      state = lvlNum + 1;
+      ref.read(authProvider.notifier).saveActiveProgress(state, ref.read(levelStarsProvider));
+    }
+  }
+
+  void setMaxUnlocked(int lvl) {
+    state = lvl;
+  }
+}
+
+final maxUnlockedLevelProvider = NotifierProvider<MaxUnlockedLevelNotifier, int>(
+  MaxUnlockedLevelNotifier.new,
+);
+
+class MaxUnlockedTutorialLevelNotifier extends Notifier<int> {
+  @override
+  int build() {
+    final auth = ref.watch(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final prefs = ref.watch(authProvider.notifier).prefs;
+    if (prefs == null) return 1;
+    return prefs.getInt('dronestep_${user}_max_unlocked_tutorial') ?? 1;
+  }
+
+  Future<void> unlockTutorialLevel(String levelId) async {
+    final numStr = levelId.replaceAll(RegExp(r'[^0-9]'), '');
+    final stepNumber = int.tryParse(numStr) ?? 1;
+    if (stepNumber >= state && state < 3) {
+      state = stepNumber + 1;
+      final auth = ref.read(authProvider);
+      final user = auth.currentUser ?? 'guest';
+      final prefs = ref.read(authProvider.notifier).prefs;
+      if (prefs != null) {
+        await prefs.setInt('dronestep_${user}_max_unlocked_tutorial', state);
+      }
+    }
+  }
+}
+
+final maxUnlockedTutorialLevelProvider = NotifierProvider<MaxUnlockedTutorialLevelNotifier, int>(
+  MaxUnlockedTutorialLevelNotifier.new,
+);
+
+class LevelStarsNotifier extends Notifier<Map<String, int>> {
+  @override
+  Map<String, int> build() => {};
+
+  void setStars(String levelId, int stars) {
+    final current = state[levelId] ?? 0;
+    if (stars > current) {
+      state = {
+        ...state,
+        levelId: stars,
+      };
+      ref.read(authProvider.notifier).saveActiveProgress(ref.read(maxUnlockedLevelProvider), state);
+    }
+  }
+
+  void setAllStars(Map<String, int> stars) {
+    state = stars;
+  }
+}
+
+final levelStarsProvider = NotifierProvider<LevelStarsNotifier, Map<String, int>>(
+  LevelStarsNotifier.new,
+);
+
+class GameModeNotifier extends Notifier<GameMode> {
+  @override
+  GameMode build() => GameMode.normal;
+
+  void setMode(GameMode mode) {
+    state = mode;
+    ref.read(authProvider.notifier).onModeChanged();
+  }
+}
+
+final gameModeProvider = NotifierProvider<GameModeNotifier, GameMode>(
+  GameModeNotifier.new,
+);
+
+class AuthStatus {
+  final String? currentUser;
+  final List<String> registeredUsers;
+  final String? message;
+
+  const AuthStatus({
+    this.currentUser,
+    this.registeredUsers = const [],
+    this.message,
+  });
+
+  AuthStatus copyWith({
+    String? currentUser,
+    bool clearUser = false,
+    List<String>? registeredUsers,
+    String? message,
+  }) {
+    return AuthStatus(
+      currentUser: clearUser ? null : (currentUser ?? this.currentUser),
+      registeredUsers: registeredUsers ?? this.registeredUsers,
+      message: message,
+    );
+  }
+}
+
+class AuthNotifier extends Notifier<AuthStatus> {
+  SharedPreferences? _prefs;
+  bool _initialized = false;
+
+  SharedPreferences? get prefs => _prefs;
+
+  @override
+  AuthStatus build() {
+    _initPrefs();
+    return const AuthStatus();
+  }
+
+  Future<void> _initPrefs() async {
+    _prefs = await SharedPreferences.getInstance();
+    _initialized = true;
+
+    final usersList = _prefs!.getStringList('dronestep_users') ?? [];
+    final currentUser = _prefs!.getString('dronestep_current_user');
+
+    state = AuthStatus(
+      currentUser: currentUser,
+      registeredUsers: usersList,
+    );
+
+    _syncProgressToProviders();
+  }
+
+  void _syncProgressToProviders() {
+    if (!_initialized || _prefs == null) return;
+    
+    final mode = ref.read(gameModeProvider);
+    final user = state.currentUser ?? 'guest';
+
+    final maxKey = 'dronestep_${user}_max_unlocked_${mode.name}';
+    final maxLvl = _prefs!.getInt(maxKey) ?? 1;
+    ref.read(maxUnlockedLevelProvider.notifier).setMaxUnlocked(maxLvl);
+
+    final starsKey = 'dronestep_${user}_stars_${mode.name}';
+    final starsJson = _prefs!.getString(starsKey) ?? '{}';
+    Map<String, int> starsMap = {};
+    try {
+      final decoded = jsonDecode(starsJson) as Map;
+      starsMap = decoded.map((key, val) {
+        String newKey = key.toString();
+        final parsedKey = int.tryParse(newKey);
+        if (parsedKey != null) {
+          if (parsedKey < 0) {
+            newKey = 'T${parsedKey.abs()}';
+          } else {
+            newKey = mode == GameMode.hard ? 'H$newKey' : 'N$newKey';
+          }
+        }
+        return MapEntry(newKey, int.parse(val.toString()));
+      });
+    } catch (_) {}
+    ref.read(levelStarsProvider.notifier).setAllStars(starsMap);
+
+    final hintsKey = 'dronestep_${user}_unlocked_hints_${mode.name}';
+    final hintsListStr = _prefs!.getStringList(hintsKey) ?? [];
+    final hintsSet = hintsListStr.map((id) {
+      String newId = id.toString();
+      final parsedId = int.tryParse(newId);
+      if (parsedId != null) {
+        if (parsedId < 0) {
+          newId = 'T${parsedId.abs()}';
+        } else {
+          newId = mode == GameMode.hard ? 'H$newId' : 'N$newId';
+        }
+      }
+      return newId;
+    }).toSet();
+    ref.read(unlockedHintsProvider.notifier).setUnlocked(hintsSet);
+
+    ref.read(pilotBatteryProvider.notifier).initBattery(_prefs!, user);
+  }
+
+  Future<bool> register(String username, String password) async {
+    if (!_initialized || _prefs == null || username.isEmpty || password.isEmpty) {
+      state = state.copyWith(message: 'Invalid input fields.');
+      return false;
+    }
+
+    final trimmedUser = username.trim();
+    if (state.registeredUsers.contains(trimmedUser)) {
+      state = state.copyWith(message: 'Pilot ID already registered.');
+      return false;
+    }
+
+    final newList = List<String>.from(state.registeredUsers)..add(trimmedUser);
+    await _prefs!.setStringList('dronestep_users', newList);
+    await _prefs!.setString('dronestep_user_${trimmedUser}_password', password);
+    await _prefs!.setString('dronestep_current_user', trimmedUser);
+
+    state = state.copyWith(
+      currentUser: trimmedUser,
+      registeredUsers: newList,
+      message: 'Pilot registered and synced!',
+    );
+
+    _syncProgressToProviders();
+    return true;
+  }
+
+  Future<bool> login(String username, String password) async {
+    if (!_initialized || _prefs == null || username.isEmpty || password.isEmpty) {
+      state = state.copyWith(message: 'Invalid input fields.');
+      return false;
+    }
+
+    final trimmedUser = username.trim();
+    if (!state.registeredUsers.contains(trimmedUser)) {
+      state = state.copyWith(message: 'Pilot ID not found.');
+      return false;
+    }
+
+    final storedPass = _prefs!.getString('dronestep_user_${trimmedUser}_password');
+    if (storedPass != password) {
+      state = state.copyWith(message: 'Invalid security passkey.');
+      return false;
+    }
+
+    await _prefs!.setString('dronestep_current_user', trimmedUser);
+
+    state = state.copyWith(
+      currentUser: trimmedUser,
+      message: 'Pilot profile synced.',
+    );
+
+    _syncProgressToProviders();
+    return true;
+  }
+
+  Future<void> logout() async {
+    if (!_initialized || _prefs == null) return;
+
+    await _prefs!.remove('dronestep_current_user');
+
+    state = state.copyWith(
+      clearUser: true,
+      message: 'Logged out. Guest profile active.',
+    );
+
+    _syncProgressToProviders();
+  }
+
+  Future<void> saveActiveProgress(int maxUnlocked, Map<String, int> stars) async {
+    if (!_initialized || _prefs == null) return;
+
+    final mode = ref.read(gameModeProvider);
+    final user = state.currentUser ?? 'guest';
+
+    final maxKey = 'dronestep_${user}_max_unlocked_${mode.name}';
+    await _prefs!.setInt(maxKey, maxUnlocked);
+
+    final starsKey = 'dronestep_${user}_stars_${mode.name}';
+    final starsStrMap = stars.map((key, val) => MapEntry(key, val));
+    await _prefs!.setString(starsKey, jsonEncode(starsStrMap));
+  }
+
+  Future<void> saveUnlockedHint(String levelId) async {
+    if (!_initialized || _prefs == null) return;
+    final mode = ref.read(gameModeProvider);
+    final user = state.currentUser ?? 'guest';
+    final key = 'dronestep_${user}_unlocked_hints_${mode.name}';
+    final current = ref.read(unlockedHintsProvider);
+    final newList = {...current, levelId}.toList();
+    await _prefs!.setStringList(key, newList);
+  }
+
+  void onModeChanged() {
+    _syncProgressToProviders();
+  }
+}
+
+final authProvider = NotifierProvider<AuthNotifier, AuthStatus>(
+  AuthNotifier.new,
+);
+
+class UnlockedHintsNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => {};
+
+  void setUnlocked(Set<String> ids) {
+    state = ids;
+  }
+
+  void unlockHint(String levelId) {
+    state = {...state, levelId};
+    ref.read(authProvider.notifier).saveUnlockedHint(levelId);
+  }
+}
+
+final unlockedHintsProvider = NotifierProvider<UnlockedHintsNotifier, Set<String>>(
+  UnlockedHintsNotifier.new,
+);
+
+final remainingHintsProvider = Provider<int>((ref) {
+  final starsMap = ref.watch(levelStarsProvider);
+  final unlockedHints = ref.watch(unlockedHintsProvider);
+  final completedCount = starsMap.values.where((stars) => stars > 0).length;
+  final totalHintsEarned = completedCount * 3;
+  return math.max(0, totalHintsEarned - unlockedHints.length);
+});
+
+class SeenTutorialNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    final auth = ref.watch(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final prefs = ref.watch(authProvider.notifier).prefs;
+    if (prefs == null) return false;
+
+    // Fallback: If T3 has stars > 0, they have finished the tutorial.
+    final starsKey = 'dronestep_${user}_stars_normal';
+    final starsJson = prefs.getString(starsKey) ?? '{}';
+    try {
+      final decoded = jsonDecode(starsJson) as Map;
+      final t3Stars = decoded['T3'] ?? 0;
+      if (int.parse(t3Stars.toString()) > 0) {
+        return true;
+      }
+    } catch (_) {}
+
+    return prefs.getBool('dronestep_${user}_seen_tutorial_missions') ?? false;
+  }
+
+  Future<void> markAsSeen() async {
+    final auth = ref.read(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final prefs = ref.read(authProvider.notifier).prefs;
+    if (prefs != null) {
+      await prefs.setBool('dronestep_${user}_seen_tutorial_missions', true);
+      state = true;
+    }
+  }
+
+  Future<void> reset() async {
+    final auth = ref.read(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final prefs = ref.read(authProvider.notifier).prefs;
+    if (prefs != null) {
+      await prefs.remove('dronestep_${user}_seen_tutorial_missions');
+      state = false;
+    }
+  }
+}
+
+final seenTutorialMissionsProvider = NotifierProvider<SeenTutorialNotifier, bool>(
+  SeenTutorialNotifier.new,
+);
+
+class PilotBatteryNotifier extends Notifier<int> with WidgetsBindingObserver {
+  Timer? _timer;
+  static const int maxBattery = 50;
+  static const int secondsPerCharge = 60; // 60 seconds per charge
+  DateTime _lastRechargeTime = DateTime.now();
+
+  DateTime get lastRechargeTime => _lastRechargeTime;
+
+  @override
+  int build() {
+    WidgetsBinding.instance.addObserver(this);
+
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _rechargePassive();
+    });
+
+    ref.onDispose(() {
+      WidgetsBinding.instance.removeObserver(this);
+      _timer?.cancel();
+    });
+
+    return maxBattery;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _rechargePassive();
+    }
+  }
+
+  int getSecondsRemaining() {
+    if (state >= maxBattery) return 0;
+    final now = DateTime.now();
+    final diff = now.difference(_lastRechargeTime);
+    final elapsed = diff.inSeconds;
+    final remaining = secondsPerCharge - (elapsed % secondsPerCharge);
+    return math.max(0, remaining);
+  }
+
+  int getTotalSecondsRemaining() {
+    if (state >= maxBattery) return 0;
+    final nextChargeRemaining = getSecondsRemaining();
+    final fullChargesNeeded = maxBattery - state - 1;
+    return nextChargeRemaining + (fullChargesNeeded * secondsPerCharge);
+  }
+
+  Future<void> initBattery(SharedPreferences prefs, String user) async {
+    final batteryKey = 'dronestep_${user}_battery';
+    final timestampKey = 'dronestep_${user}_battery_timestamp';
+
+    int level = prefs.getInt(batteryKey) ?? maxBattery;
+    final timestampStr = prefs.getString(timestampKey);
+    final now = DateTime.now();
+
+    if (timestampStr != null && level < maxBattery) {
+      final lastTime = DateTime.parse(timestampStr);
+      final difference = now.difference(lastTime);
+      final chargesGained = difference.inSeconds ~/ secondsPerCharge;
+      if (chargesGained > 0) {
+        level = math.min(maxBattery, level + chargesGained);
+      }
+    }
+
+    state = level;
+
+    DateTime saveTime = now;
+    if (timestampStr != null && level < maxBattery) {
+      final lastTime = DateTime.parse(timestampStr);
+      final elapsedSeconds = now.difference(lastTime).inSeconds;
+      saveTime = lastTime.add(Duration(seconds: (elapsedSeconds ~/ secondsPerCharge) * secondsPerCharge));
+    }
+
+    _lastRechargeTime = saveTime;
+    _saveToPrefs(prefs, user, level, saveTime);
+  }
+
+  void _rechargePassive() {
+    final auth = ref.read(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final authNotifier = ref.read(authProvider.notifier);
+    final prefs = authNotifier.prefs;
+    if (prefs == null) return;
+
+    if (state >= maxBattery) {
+      _lastRechargeTime = DateTime.now();
+      return;
+    }
+
+    final timestampKey = 'dronestep_${user}_battery_timestamp';
+    final timestampStr = prefs.getString(timestampKey);
+    final now = DateTime.now();
+
+    if (timestampStr != null) {
+      final lastTime = DateTime.parse(timestampStr);
+      final difference = now.difference(lastTime);
+      final chargesGained = difference.inSeconds ~/ secondsPerCharge;
+      if (chargesGained > 0) {
+        final newLevel = math.min(maxBattery, state + chargesGained);
+        state = newLevel;
+        final nextTime = lastTime.add(Duration(seconds: chargesGained * secondsPerCharge));
+        _lastRechargeTime = newLevel == maxBattery ? now : nextTime;
+        _saveToPrefs(prefs, user, newLevel, _lastRechargeTime);
+      }
+    } else {
+      _lastRechargeTime = now;
+      prefs.setString(timestampKey, now.toIso8601String());
+    }
+  }
+
+  Future<bool> spendBattery(int amount) async {
+    if (state < amount) return false;
+    final auth = ref.read(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final authNotifier = ref.read(authProvider.notifier);
+    final prefs = authNotifier.prefs;
+
+    final newLevel = state - amount;
+    final wasFull = (state == maxBattery);
+    state = newLevel;
+
+    if (prefs != null) {
+      final timestampKey = 'dronestep_${user}_battery_timestamp';
+      final now = DateTime.now();
+      DateTime lastTime = now;
+      if (newLevel < maxBattery) {
+        if (wasFull) {
+          lastTime = now;
+        } else {
+          final lastTimeStr = prefs.getString(timestampKey);
+          if (lastTimeStr != null) {
+            lastTime = DateTime.parse(lastTimeStr);
+          }
+        }
+      }
+      _lastRechargeTime = lastTime;
+      await _saveToPrefs(prefs, user, newLevel, lastTime);
+    }
+    return true;
+  }
+
+  Future<void> rewardBattery(int amount) async {
+    final auth = ref.read(authProvider);
+    final user = auth.currentUser ?? 'guest';
+    final authNotifier = ref.read(authProvider.notifier);
+    final prefs = authNotifier.prefs;
+
+    final newLevel = math.min(maxBattery, state + amount);
+    final reachesFull = (newLevel == maxBattery);
+    state = newLevel;
+
+    if (prefs != null) {
+      final timestampKey = 'dronestep_${user}_battery_timestamp';
+      final now = DateTime.now();
+      DateTime lastTime = now;
+      if (!reachesFull) {
+        final lastTimeStr = prefs.getString(timestampKey);
+        if (lastTimeStr != null) {
+          lastTime = DateTime.parse(lastTimeStr);
+        }
+      }
+      _lastRechargeTime = lastTime;
+      await _saveToPrefs(prefs, user, newLevel, lastTime);
+    }
+  }
+
+  Future<void> _saveToPrefs(SharedPreferences prefs, String user, int level, DateTime time) async {
+    final batteryKey = 'dronestep_${user}_battery';
+    final timestampKey = 'dronestep_${user}_battery_timestamp';
+    await prefs.setInt(batteryKey, level);
+    await prefs.setString(timestampKey, time.toIso8601String());
+  }
+}
+
+final pilotBatteryProvider = NotifierProvider<PilotBatteryNotifier, int>(
+  PilotBatteryNotifier.new,
 );

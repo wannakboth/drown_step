@@ -180,7 +180,7 @@ class GameGridPainter extends CustomPainter {
         text: status == GameStatus.success ? 'SECURED' : 'DROP',
         style: TextStyle(
           color: CyberTheme.neonGreen,
-          fontSize: 8.5,
+          fontSize: 10.5,
           fontFamily: 'ShareTechMono',
           fontWeight: FontWeight.bold,
           letterSpacing: 0.8,
@@ -286,7 +286,7 @@ class GameGridPainter extends CustomPainter {
           text: 'H:${obs.height}',
           style: TextStyle(
             color: CyberTheme.neonPink,
-            fontSize: 10.0,
+            fontSize: 12.0,
             fontFamily: 'ShareTechMono',
             fontWeight: FontWeight.bold,
           ),
@@ -335,7 +335,7 @@ class GameGridPainter extends CustomPainter {
           text: 'ALT ${cell.height}',
           style: TextStyle(
             color: CyberTheme.neonYellow,
-            fontSize: 8.0,
+            fontSize: 10.0,
             fontFamily: 'ShareTechMono',
             fontWeight: FontWeight.bold,
           ),

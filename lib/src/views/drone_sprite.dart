@@ -63,6 +63,7 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
     _entryController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
+      value: 1.0,
     );
 
     _isCargoVisible = widget.hasCargo;
@@ -256,7 +257,6 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
                               ),
                               decoration: BoxDecoration(
                                 color: CyberTheme.cardBg.withValues(alpha: 0.95),
-                                borderRadius: BorderRadius.circular(20.0),
                                 border: Border.all(
                                   color: widget.status == GameStatus.crashed
                                       ? Colors.redAccent

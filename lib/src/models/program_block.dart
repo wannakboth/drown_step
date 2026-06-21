@@ -108,6 +108,27 @@ extension ConditionTypeExt on ConditionType {
         return 'ON TARGET PAD';
     }
   }
+
+  String get shortLabel {
+    switch (this) {
+      case ConditionType.hasCargo:
+        return 'CARGO';
+      case ConditionType.notHasCargo:
+        return 'NO CARGO';
+      case ConditionType.obstacleAhead:
+        return 'OBS AHEAD';
+      case ConditionType.obstacleNearby:
+        return 'OBS NEAR';
+      case ConditionType.batteryLow:
+        return 'BATT LOW';
+      case ConditionType.batteryHigh:
+        return 'BATT OK';
+      case ConditionType.altitudeHigh:
+        return 'ALT HIGH';
+      case ConditionType.onTarget:
+        return 'ON TARGET';
+    }
+  }
 }
 
 class ProgramBlock {
@@ -183,6 +204,9 @@ class VMInstruction {
   final ConditionType? condition;
   final int jumpTarget;
   final String blockId;
+  final String? loopBlockId;
+  final int? loopIteration;
+  final int? loopTotal;
 
   VMInstruction({
     required this.type,
@@ -190,18 +214,26 @@ class VMInstruction {
     this.condition,
     this.jumpTarget = -1,
     required this.blockId,
+    this.loopBlockId,
+    this.loopIteration,
+    this.loopTotal,
   });
 
   @override
   String toString() {
-    return 'VMInstruction(type: $type, action: $action, condition: $condition, target: $jumpTarget, blockId: $blockId)';
+    return 'VMInstruction(type: $type, action: $action, condition: $condition, target: $jumpTarget, blockId: $blockId, loopBlockId: $loopBlockId, loopIteration: $loopIteration, loopTotal: $loopTotal)';
   }
 }
 
 List<VMInstruction> compileProgram(List<ProgramBlock> program) {
   final instructions = <VMInstruction>[];
 
-  void compileBlock(ProgramBlock block) {
+  void compileBlock(
+    ProgramBlock block, {
+    String? currentLoopId,
+    int? currentIteration,
+    int? currentTotal,
+  }) {
     switch (block.type) {
       case BlockType.action:
         if (block.action != null) {
@@ -209,6 +241,9 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
             type: InstructionType.executeAction,
             action: block.action,
             blockId: block.id,
+            loopBlockId: currentLoopId,
+            loopIteration: currentIteration,
+            loopTotal: currentTotal,
           ));
         }
         break;
@@ -216,7 +251,12 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
       case BlockType.repeat:
         for (int i = 0; i < block.repeatCount; i++) {
           for (final child in block.body) {
-            compileBlock(child);
+            compileBlock(
+              child,
+              currentLoopId: block.id,
+              currentIteration: i + 1,
+              currentTotal: block.repeatCount,
+            );
           }
         }
         break;
@@ -229,16 +269,21 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
           type: InstructionType.jumpIfNot,
           condition: block.condition,
           blockId: block.id,
+          loopBlockId: block.id,
         ));
 
         for (final child in block.body) {
-          compileBlock(child);
+          compileBlock(
+            child,
+            currentLoopId: block.id,
+          );
         }
 
         instructions.add(VMInstruction(
           type: InstructionType.jump,
           jumpTarget: startIdx,
           blockId: block.id,
+          loopBlockId: block.id,
         ));
 
         final endIdx = instructions.length;
@@ -247,6 +292,7 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
           condition: block.condition,
           jumpTarget: endIdx,
           blockId: block.id,
+          loopBlockId: block.id,
         );
         break;
 
@@ -256,16 +302,27 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
           type: InstructionType.jumpIfNot,
           condition: block.condition,
           blockId: block.id,
+          loopBlockId: currentLoopId,
+          loopIteration: currentIteration,
+          loopTotal: currentTotal,
         ));
 
         for (final child in block.body) {
-          compileBlock(child);
+          compileBlock(
+            child,
+            currentLoopId: currentLoopId,
+            currentIteration: currentIteration,
+            currentTotal: currentTotal,
+          );
         }
 
         final jumpToEndIdx = instructions.length;
         instructions.add(VMInstruction(
           type: InstructionType.jump,
           blockId: block.id,
+          loopBlockId: currentLoopId,
+          loopIteration: currentIteration,
+          loopTotal: currentTotal,
         ));
 
         final elseStartIdx = instructions.length;
@@ -274,10 +331,18 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
           condition: block.condition,
           jumpTarget: elseStartIdx,
           blockId: block.id,
+          loopBlockId: currentLoopId,
+          loopIteration: currentIteration,
+          loopTotal: currentTotal,
         );
 
         for (final child in block.elseBody) {
-          compileBlock(child);
+          compileBlock(
+            child,
+            currentLoopId: currentLoopId,
+            currentIteration: currentIteration,
+            currentTotal: currentTotal,
+          );
         }
 
         final endIdx = instructions.length;
@@ -285,6 +350,9 @@ List<VMInstruction> compileProgram(List<ProgramBlock> program) {
           type: InstructionType.jump,
           jumpTarget: endIdx,
           blockId: block.id,
+          loopBlockId: currentLoopId,
+          loopIteration: currentIteration,
+          loopTotal: currentTotal,
         );
         break;
     }
