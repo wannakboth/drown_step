@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/views/game_screen.dart';
 import 'src/views/home_screen.dart';
+import 'src/views/sandbox_editor.dart';
 import 'src/theme/colors.dart';
 import 'src/providers/game_state.dart';
 
@@ -30,7 +31,9 @@ class MainApp extends ConsumerWidget {
       ),
       home: activeScreen == AppScreen.home
           ? const HomeScreen()
-          : const GameScreen(),
+          : activeScreen == AppScreen.sandboxEditor
+              ? const SandboxEditorScreen()
+              : const GameScreen(),
     );
   }
 }

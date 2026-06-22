@@ -133,7 +133,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
             ref
                 .read(maxUnlockedTutorialLevelProvider.notifier)
                 .unlockTutorialLevel(next.level.id);
-          } else {
+          } else if (!next.level.id.startsWith('S')) {
             ref
                 .read(maxUnlockedLevelProvider.notifier)
                 .unlockLevel(next.level.id);
@@ -319,7 +319,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                   final height = paddedConstraints.maxHeight;
 
                                   const toggleHeight = 36.0;
-                                  const double hudHeight = 82.0;
+                                  const double hudHeight = 128.0;
 
                                   final targetPanelHeight = isExpanded
                                       ? (height * 0.70)
@@ -837,8 +837,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 Expanded(
                                   child: Text(
                                     isSoundOn
-                                        ? 'AUDIO FEEDBACK: ACTIVE'
-                                        : 'AUDIO FEEDBACK: MUTED',
+                                        ? 'MASTER AUDIO: ACTIVE'
+                                        : 'MASTER AUDIO: MUTED',
                                     style: CyberTheme.fontCode(
                                       size: 13.0,
                                       color: isSoundOn
@@ -847,26 +847,111 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                     ).copyWith(fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                                Container(
-                                  width: 8.0,
-                                  height: 8.0,
-                                  decoration: BoxDecoration(
-                                    color: isSoundOn
-                                        ? CyberTheme.neonGreen
-                                        : Colors.transparent,
-                                    border: Border.all(
-                                      color: isSoundOn
-                                          ? Colors.transparent
-                                          : CyberTheme.textMuted,
-                                      width: 1.0,
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ),
+                      if (isSoundOn) ...[
+                        const SizedBox(height: 12.0),
+                        Text(
+                          'SFX VOLUME: ${(ref.watch(sfxVolumeProvider) * 100).round()}%',
+                          style: CyberTheme.fontCode(size: 11.0, color: CyberTheme.neonGreen).copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Slider(
+                          value: ref.watch(sfxVolumeProvider),
+                          activeColor: CyberTheme.neonGreen,
+                          inactiveColor: Colors.white10,
+                          onChanged: (v) {
+                            ref.read(sfxVolumeProvider.notifier).setVolume(v);
+                            setDialogState(() {});
+                          },
+                        ),
+                        const SizedBox(height: 6.0),
+                        Row(
+                          children: [
+                            Icon(
+                              ref.watch(bgmOnProvider) ? Icons.music_note : Icons.music_off,
+                              size: 18.0,
+                              color: ref.watch(bgmOnProvider) ? CyberTheme.neonCyan : CyberTheme.textMuted,
+                            ),
+                            const SizedBox(width: 8.0),
+                            Text(
+                              'AMBIENT BGM',
+                              style: CyberTheme.fontCode(
+                                size: 12.0,
+                                color: ref.watch(bgmOnProvider) ? CyberTheme.neonCyan : CyberTheme.textMuted,
+                              ).copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
+                            Switch(
+                              value: ref.watch(bgmOnProvider),
+                              activeThumbColor: CyberTheme.neonCyan,
+                              activeTrackColor: CyberTheme.neonCyan.withValues(alpha: 0.3),
+                              inactiveThumbColor: CyberTheme.textMuted,
+                              inactiveTrackColor: Colors.white10,
+                              onChanged: (v) {
+                                ref.read(audioControllerProvider).playClick();
+                                ref.read(bgmOnProvider.notifier).toggle();
+                                setDialogState(() {});
+                              },
+                            ),
+                          ],
+                        ),
+                        if (ref.watch(bgmOnProvider)) ...[
+                          Slider(
+                            value: ref.watch(bgmVolumeProvider),
+                            activeColor: CyberTheme.neonCyan,
+                            inactiveColor: Colors.white10,
+                            onChanged: (v) {
+                              ref.read(bgmVolumeProvider.notifier).setVolume(v);
+                              setDialogState(() {});
+                            },
+                          ),
+                        ],
+                        const SizedBox(height: 6.0),
+                        Row(
+                          children: [
+                            Icon(
+                              ref.watch(humOnProvider) ? Icons.waves : Icons.blur_off,
+                              size: 18.0,
+                              color: ref.watch(humOnProvider) ? CyberTheme.neonYellow : CyberTheme.textMuted,
+                            ),
+                            const SizedBox(width: 8.0),
+                            Text(
+                              'REACTOR COCKPIT HUM',
+                              style: CyberTheme.fontCode(
+                                size: 12.0,
+                                color: ref.watch(humOnProvider) ? CyberTheme.neonYellow : CyberTheme.textMuted,
+                              ).copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
+                            Switch(
+                              value: ref.watch(humOnProvider),
+                              activeThumbColor: CyberTheme.neonYellow,
+                              activeTrackColor: CyberTheme.neonYellow.withValues(alpha: 0.3),
+                              inactiveThumbColor: CyberTheme.textMuted,
+                              inactiveTrackColor: Colors.white10,
+                              onChanged: (v) {
+                                ref.read(audioControllerProvider).playClick();
+                                ref.read(humOnProvider.notifier).toggle();
+                                setDialogState(() {});
+                              },
+                            ),
+                          ],
+                        ),
+                        if (ref.watch(humOnProvider)) ...[
+                          Slider(
+                            value: ref.watch(humVolumeProvider),
+                            activeColor: CyberTheme.neonYellow,
+                            inactiveColor: Colors.white10,
+                            onChanged: (v) {
+                              ref.read(humVolumeProvider.notifier).setVolume(v);
+                              setDialogState(() {});
+                            },
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: 12.0),
 
                       // Tactical Assistance Section
@@ -1966,6 +2051,14 @@ class _GameScreenState extends ConsumerState<GameScreen>
             ),
           ],
         ),
+        const SizedBox(height: 8.0),
+        const Divider(color: CyberTheme.borderTranslucent, height: 1.0),
+        const SizedBox(height: 6.0),
+        _ScrollingTelemetryChart(
+          status: state.status,
+          droneHeight: state.droneHeight,
+          battery: state.battery,
+        ),
       ],
     );
 
@@ -2562,6 +2655,15 @@ class _GameScreenState extends ConsumerState<GameScreen>
   }
 
   Level? _findNextLevel(Level current) {
+    if (current.id.startsWith('S')) {
+      final sandboxLevels = ref.read(sandboxLevelsProvider);
+      final index = sandboxLevels.indexWhere((l) => l.id == current.id);
+      if (index != -1 && index + 1 < sandboxLevels.length) {
+        return sandboxLevels[index + 1];
+      }
+      return null;
+    }
+
     final prefix = current.id.replaceAll(RegExp(r'[0-9]'), '');
     final numStr = current.id.replaceAll(RegExp(r'[^0-9]'), '');
     final currentNum = int.tryParse(numStr) ?? 1;
@@ -3219,5 +3321,217 @@ class CargoBoxPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CargoBoxPainter oldDelegate) {
     return oldDelegate.animationValue != animationValue;
+  }
+}
+
+class _ScrollingTelemetryChart extends StatefulWidget {
+  final GameStatus status;
+  final int droneHeight;
+  final int battery;
+
+  const _ScrollingTelemetryChart({
+    required this.status,
+    required this.droneHeight,
+    required this.battery,
+  });
+
+  @override
+  State<_ScrollingTelemetryChart> createState() => _ScrollingTelemetryChartState();
+}
+
+class _ScrollingTelemetryChartState extends State<_ScrollingTelemetryChart>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final List<double> _altitudeHistory = [];
+  final List<double> _batteryHistory = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+
+    // Initialize histories
+    for (int i = 0; i < 50; i++) {
+      _altitudeHistory.add(widget.droneHeight.toDouble());
+      _batteryHistory.add(widget.battery.toDouble());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScrollingTelemetryChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.droneHeight != oldWidget.droneHeight || widget.battery != oldWidget.battery) {
+      setState(() {
+        _altitudeHistory.removeAt(0);
+        _altitudeHistory.add(widget.droneHeight.toDouble());
+        _batteryHistory.removeAt(0);
+        _batteryHistory.add(widget.battery.toDouble());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return SizedBox(
+          height: 38.0,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: _TelemetryChartPainter(
+              status: widget.status,
+              altitudeHistory: _altitudeHistory,
+              batteryHistory: _batteryHistory,
+              phase: _controller.value * 2 * math.pi,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TelemetryChartPainter extends CustomPainter {
+  final GameStatus status;
+  final List<double> altitudeHistory;
+  final List<double> batteryHistory;
+  final double phase;
+
+  _TelemetryChartPainter({
+    required this.status,
+    required this.altitudeHistory,
+    required this.batteryHistory,
+    required this.phase,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.clipRect(rect);
+
+    // 1. Draw grid background
+    final gridPaint = Paint()
+      ..color = CyberTheme.borderTranslucent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5;
+
+    // Draw horizontal grid lines
+    const gridRows = 3;
+    for (int i = 1; i < gridRows; i++) {
+      final y = size.height * i / gridRows;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    // Draw vertical grid lines
+    const gridCols = 8;
+    for (int i = 1; i < gridCols; i++) {
+      final x = size.width * i / gridCols;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+
+    // 2. Draw historical altitude trace (Neon Yellow/Orange)
+    if (altitudeHistory.isNotEmpty) {
+      final altPath = Path();
+      final dx = size.width / (altitudeHistory.length - 1);
+      
+      // We want to scale altitude (0m to 8m)
+      double getAltY(double alt) {
+        final norm = (alt / 8.0).clamp(0.0, 1.0);
+        return size.height - 4.0 - norm * (size.height - 8.0);
+      }
+
+      altPath.moveTo(0, getAltY(altitudeHistory[0]));
+      for (int i = 1; i < altitudeHistory.length; i++) {
+        altPath.lineTo(dx * i, getAltY(altitudeHistory[i]));
+      }
+
+      final altPaint = Paint()
+        ..color = CyberTheme.neonYellow.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      canvas.drawPath(altPath, altPaint);
+    }
+
+    // 3. Draw real-time System Pulse neon wave (Cyan/Green)
+    final pulsePath = Path();
+    final step = 2.0;
+    
+    // Adjust frequency and amplitude based on status
+    double freq = 0.08;
+    double amp = 6.0;
+    Color pulseColor = CyberTheme.neonCyan;
+
+    switch (status) {
+      case GameStatus.running:
+        freq = 0.18;
+        amp = 12.0;
+        pulseColor = CyberTheme.neonCyan;
+        break;
+      case GameStatus.success:
+        freq = 0.12;
+        amp = 8.0;
+        pulseColor = CyberTheme.neonGreen;
+        break;
+      case GameStatus.crashed:
+        freq = 0.35;
+        amp = size.height * 0.45; // high noise!
+        pulseColor = CyberTheme.neonPink;
+        break;
+      case GameStatus.idle:
+      case GameStatus.paused:
+        freq = 0.05;
+        amp = 3.5;
+        pulseColor = CyberTheme.neonCyan.withValues(alpha: 0.7);
+        break;
+    }
+
+    double getPulseY(double x) {
+      final centerY = size.height / 2.0;
+      if (status == GameStatus.crashed) {
+        // static noise Flatline!
+        final t = x * freq + phase * 4;
+        final noiseVal = math.sin(t) * math.cos(t * 2.3) * math.sin(t * 7.7);
+        return centerY + noiseVal * amp * (x < size.width * 0.35 ? 1.0 : 0.1);
+      }
+      return centerY + math.sin(x * freq - phase) * amp;
+    }
+
+    pulsePath.moveTo(0, getPulseY(0));
+    for (double x = step; x < size.width; x += step) {
+      pulsePath.lineTo(x, getPulseY(x));
+    }
+
+    final pulsePaint = Paint()
+      ..color = pulseColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+
+    // Draw pulse with a glowing shadow
+    canvas.drawPath(
+      pulsePath,
+      Paint()
+        ..color = pulseColor.withValues(alpha: 0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
+    );
+    canvas.drawPath(pulsePath, pulsePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TelemetryChartPainter oldDelegate) {
+    return oldDelegate.phase != phase ||
+        oldDelegate.status != status ||
+        oldDelegate.altitudeHistory != altitudeHistory ||
+        oldDelegate.batteryHistory != batteryHistory;
   }
 }

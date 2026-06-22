@@ -1042,6 +1042,57 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                                 ),
                               ),
                               SizedBox(width: isNarrow ? 6.0 : 8.0),
+                              // STEP button
+                              CyberCard(
+                                borderColor: isRunning
+                                    ? CyberTheme.textMuted.withValues(alpha: 0.2)
+                                    : CyberTheme.neonYellow.withValues(alpha: 0.9),
+                                backgroundColor: isRunning
+                                    ? Colors.transparent
+                                    : CyberTheme.neonYellow.withValues(alpha: 0.1),
+                                borderWidth: 1.0,
+                                chamferSize: 6.0,
+                                showAccents: false,
+                                child: InkWell(
+                                  onTap: isRunning
+                                      ? null
+                                      : () {
+                                          _playClick();
+                                          notifier.stepSimulation();
+                                        },
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: isNarrow ? 10.0 : 14.0,
+                                      vertical: isNarrow ? 8.0 : 10.0,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.skip_next,
+                                          size: isNarrow ? 14.0 : 16.0,
+                                          color: isRunning
+                                              ? CyberTheme.textMuted
+                                              : CyberTheme.neonYellow,
+                                        ),
+                                        const SizedBox(width: 4.0),
+                                        Text(
+                                          isNarrow ? 'STEP' : 'STEP PROGRAM',
+                                          style: CyberTheme.fontCode(
+                                            size: isNarrow ? 13 : 14.0,
+                                            color: isRunning
+                                                ? CyberTheme.textMuted
+                                                : CyberTheme.neonYellow,
+                                          ).copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: isNarrow ? 6.0 : 8.0),
                               // Reset button
                               CyberCard(
                                 key: TutorialKeys.reset,

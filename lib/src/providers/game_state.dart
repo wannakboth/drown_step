@@ -34,6 +34,7 @@ class DroneGameState {
   final List<Offset> pathHistory;
   final bool hasCargo; // True once drone lands on boxX, boxY
   final double speedMultiplier;
+  final bool isStepMode;
 
   DroneGameState({
     required this.level,
@@ -52,6 +53,7 @@ class DroneGameState {
     required this.pathHistory,
     required this.hasCargo,
     required this.speedMultiplier,
+    this.isStepMode = false,
   });
 
   DroneGameState copyWith({
@@ -71,6 +73,7 @@ class DroneGameState {
     List<Offset>? pathHistory,
     bool? hasCargo,
     double? speedMultiplier,
+    bool? isStepMode,
   }) {
     return DroneGameState(
       level: level ?? this.level,
@@ -89,6 +92,7 @@ class DroneGameState {
       pathHistory: pathHistory ?? this.pathHistory,
       hasCargo: hasCargo ?? this.hasCargo,
       speedMultiplier: speedMultiplier ?? this.speedMultiplier,
+      isStepMode: isStepMode ?? this.isStepMode,
     );
   }
 
@@ -123,6 +127,7 @@ class DroneGameState {
       pathHistory: [Offset(level.startX.toDouble(), level.startY.toDouble())],
       hasCargo: false,
       speedMultiplier: 1.0,
+      isStepMode: false,
     );
   }
 }
@@ -368,6 +373,15 @@ class GameStateNotifier extends Notifier<DroneGameState> {
       return;
     }
 
+    if ((state.status == GameStatus.paused || state.isStepMode) && state.vmInstructions.isNotEmpty) {
+      state = state.copyWith(
+        status: GameStatus.running,
+        isStepMode: false,
+      );
+      _scheduleNextStep();
+      return;
+    }
+
     if (state.status == GameStatus.crashed || state.status == GameStatus.success) {
       resetSimulation();
     }
@@ -386,9 +400,54 @@ class GameStateNotifier extends Notifier<DroneGameState> {
       vmInstructions: compiled,
       pc: -1,
       activeBlockId: null,
+      isStepMode: false,
     );
 
     _scheduleNextStep();
+  }
+
+  void startStepMode() {
+    if (state.program.isEmpty) {
+      state = state.copyWith(
+        status: GameStatus.crashed,
+        message: "Program is empty! Add coding blocks to start.",
+      );
+      return;
+    }
+
+    if (state.status == GameStatus.crashed || state.status == GameStatus.success) {
+      resetSimulation();
+    }
+
+    final compiled = compileProgram(state.program);
+    if (compiled.isEmpty) {
+      state = state.copyWith(
+        status: GameStatus.crashed,
+        message: "No action commands compiled from program blocks.",
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      status: GameStatus.paused,
+      vmInstructions: compiled,
+      pc: -1,
+      activeBlockId: null,
+      isStepMode: true,
+    );
+  }
+
+  void stepSimulation() {
+    _timer?.cancel();
+    if (!state.isStepMode || state.vmInstructions.isEmpty) {
+      startStepMode();
+    }
+
+    if (state.status == GameStatus.crashed || state.status == GameStatus.success) {
+      return;
+    }
+
+    executeNextStep();
   }
 
   void pauseSimulation() {
@@ -495,7 +554,7 @@ class GameStateNotifier extends Notifier<DroneGameState> {
     int nextBattery = state.battery - 1;
     bool nextHasCargo = state.hasCargo;
     String? crashMsg;
-    GameStatus nextStatus = GameStatus.running;
+    GameStatus nextStatus = state.isStepMode ? GameStatus.paused : GameStatus.running;
 
     switch (action) {
       case ActionType.takeoff:
@@ -829,6 +888,7 @@ final lastAddedBlockIdProvider = NotifierProvider<LastAddedBlockIdNotifier, Stri
 enum AppScreen {
   home,
   game,
+  sandboxEditor,
 }
 
 class AppScreenNotifier extends Notifier<AppScreen> {
@@ -842,6 +902,70 @@ class AppScreenNotifier extends Notifier<AppScreen> {
 
 final appScreenProvider = NotifierProvider<AppScreenNotifier, AppScreen>(
   AppScreenNotifier.new,
+);
+
+class SandboxLevelsNotifier extends Notifier<List<Level>> {
+  SharedPreferences? _prefs;
+  static const _key = 'sandbox_levels';
+
+  @override
+  List<Level> build() {
+    _init();
+    return [];
+  }
+
+  Future<void> _init() async {
+    try {
+      _prefs = await SharedPreferences.getInstance();
+      if (_prefs != null) {
+        final listStr = _prefs!.getString(_key);
+        if (listStr != null) {
+          final List<dynamic> listJson = jsonDecode(listStr);
+          state = listJson.map((item) => Level.fromJson(item as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> saveLevel(Level level) async {
+    final updated = [...state];
+    final existingIndex = updated.indexWhere((l) => l.id == level.id);
+    if (existingIndex != -1) {
+      updated[existingIndex] = level;
+    } else {
+      updated.add(level);
+    }
+    state = updated;
+    await _saveToPrefs();
+  }
+
+  Future<void> deleteLevel(String id) async {
+    state = state.where((l) => l.id != id).toList();
+    await _saveToPrefs();
+  }
+
+  Future<void> _saveToPrefs() async {
+    if (_prefs == null) return;
+    final listJson = state.map((l) => l.toJson()).toList();
+    await _prefs!.setString(_key, jsonEncode(listJson));
+  }
+}
+
+final sandboxLevelsProvider = NotifierProvider<SandboxLevelsNotifier, List<Level>>(
+  SandboxLevelsNotifier.new,
+);
+
+class EditingSandboxLevelNotifier extends Notifier<Level?> {
+  @override
+  Level? build() => null;
+
+  void setLevel(Level? level) {
+    state = level;
+  }
+}
+
+final editingSandboxLevelProvider = NotifierProvider<EditingSandboxLevelNotifier, Level?>(
+  EditingSandboxLevelNotifier.new,
 );
 
 class MaxUnlockedLevelNotifier extends Notifier<int> {

@@ -35,6 +35,7 @@ class TutorialOverlay extends ConsumerStatefulWidget {
 class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final AnimationController _handClickCtrl;
   late final AnimationController _entryCtrl;
   late final Animation<double> _pulse;
   late final Animation<double> _bounce;
@@ -50,6 +51,9 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     _bounce = Tween<double>(begin: 0.0, end: 10.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
 
+    _handClickCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))
+      ..repeat(reverse: false);
+
     _entryCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     _entryFade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeIn);
     _entryScale = Tween<double>(begin: 0.9, end: 1.0)
@@ -64,6 +68,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
   @override
   void dispose() {
     _ctrl.dispose();
+    _handClickCtrl.dispose();
     _entryCtrl.dispose();
     super.dispose();
   }
@@ -97,6 +102,9 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     final isInformational = widget.step.target == TutorialTarget.telemetry ||
         widget.step.target == TutorialTarget.console ||
         widget.step.target == TutorialTarget.gridArena;
+
+    final showHandOnTarget = tRect != null && !isInformational;
+    final showHandOnNext = true;
 
     return SpotlightHitTestBlocker(
       targetRect: tRect,
@@ -183,6 +191,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                   if (tRect != null && arrowDir != 'none')
                     _buildBounceArrow(tRect, arrowDir, _bounce.value),
 
+                  // ── Animated hand click pointer ───────────────────────────
+                  if (showHandOnTarget)
+                    _buildHandPointer(tRect!),
+
                   // ── Callout card ──────────────────────────────────────────
                   Positioned(
                     left: cardRect.left,
@@ -190,7 +202,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                     width: cardRect.width,
                     child: ScaleTransition(
                       scale: _entryScale,
-                      child: _buildCard(isLast),
+                      child: _buildCard(isLast, showHandOnNext),
                     ),
                   ),
                 ],
@@ -236,7 +248,114 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     );
   }
 
-  Widget _buildCard(bool isLast) {
+  Widget _buildHandPointer(Rect tRect) {
+    final center = tRect.center;
+
+    // Position fingertip (top-left of touch_app icon) at target center
+    final left = center.dx - 10.0;
+    final top = center.dy - 6.0;
+
+    // Define tweens for the click sequence
+    final Animation<double> handScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.8), weight: 25),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.8, end: 1.0), weight: 35),
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 40),
+    ]).animate(CurvedAnimation(parent: _handClickCtrl, curve: Curves.linear));
+
+    final Animation<double> rippleScale = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.8, end: 2.5), weight: 60),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+    ]).animate(CurvedAnimation(parent: _handClickCtrl, curve: Curves.easeOut));
+
+    final Animation<double> rippleOpacity = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.8, end: 0.0), weight: 60),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+    ]).animate(CurvedAnimation(parent: _handClickCtrl, curve: Curves.linear));
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _handClickCtrl,
+          builder: (context, child) {
+            final scale = handScale.value;
+            final rScale = rippleScale.value;
+            final rOpacity = rippleOpacity.value;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Touch ripple effect
+                if (rScale > 0)
+                  Positioned(
+                    left: 10, // aligns with finger tip position in icon
+                    top: 6,
+                    child: Center(
+                      child: Transform.scale(
+                        scale: rScale,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          transform: Matrix4.translationValues(-12, -12, 0),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: CyberTheme.neonCyan.withValues(alpha: rOpacity),
+                              width: 1.5,
+                            ),
+                            color: CyberTheme.neonCyan.withValues(alpha: rOpacity * 0.15),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // Hand Icon
+                Transform.scale(
+                  scale: scale,
+                  alignment: Alignment.topLeft,
+                  child: Icon(
+                    Icons.touch_app,
+                    size: 36,
+                    color: CyberTheme.neonCyan,
+                    shadows: [
+                      Shadow(
+                        color: CyberTheme.neonCyan.withValues(alpha: 0.8),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCard(bool isLast, bool showHandOnNext) {
+    // Define tweens for the click sequence
+    final Animation<double> handScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.8), weight: 25),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.8, end: 1.0), weight: 35),
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 40),
+    ]).animate(CurvedAnimation(parent: _handClickCtrl, curve: Curves.linear));
+
+    final Animation<double> rippleScale = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.8, end: 2.5), weight: 60),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+    ]).animate(CurvedAnimation(parent: _handClickCtrl, curve: Curves.easeOut));
+
+    final Animation<double> rippleOpacity = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+      TweenSequenceItem(tween: Tween<double>(begin: 0.8, end: 0.0), weight: 60),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20),
+    ]).animate(CurvedAnimation(parent: _handClickCtrl, curve: Curves.linear));
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF07111F),
@@ -320,30 +439,99 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                     ),
                   ),
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () {
-                    _playClick();
-                    widget.onNext();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isLast
-                          ? CyberTheme.neonGreen.withValues(alpha: 0.15)
-                          : CyberTheme.neonCyan.withValues(alpha: 0.15),
-                      border: Border.all(
-                        color: isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        _playClick();
+                        widget.onNext();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isLast
+                              ? CyberTheme.neonGreen.withValues(alpha: 0.15)
+                              : CyberTheme.neonCyan.withValues(alpha: 0.15),
+                          border: Border.all(
+                            color: isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isLast ? 'START  ▶' : 'NEXT  →',
+                          style: CyberTheme.fontCode(
+                            size: 10.5,
+                            color: isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan,
+                          ).copyWith(fontWeight: FontWeight.bold),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      isLast ? 'START  ▶' : 'NEXT  →',
-                      style: CyberTheme.fontCode(
-                        size: 10.5,
-                        color: isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan,
-                      ).copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                    if (showHandOnNext)
+                      Positioned(
+                        left: 35.0,
+                        top: 10.0,
+                        child: IgnorePointer(
+                          child: AnimatedBuilder(
+                            animation: _handClickCtrl,
+                            builder: (context, child) {
+                              final scale = handScale.value;
+                              final rScale = rippleScale.value;
+                              final rOpacity = rippleOpacity.value;
+
+                              return Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // Touch ripple effect
+                                  if (rScale > 0)
+                                    Positioned(
+                                      left: 10,
+                                      top: 6,
+                                      child: Center(
+                                        child: Transform.scale(
+                                          scale: rScale,
+                                          child: Container(
+                                            width: 24,
+                                            height: 24,
+                                            transform: Matrix4.translationValues(-12, -12, 0),
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: (isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan)
+                                                    .withValues(alpha: rOpacity),
+                                                width: 1.5,
+                                              ),
+                                              color: (isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan)
+                                                  .withValues(alpha: rOpacity * 0.15),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  // Hand Icon
+                                  Transform.scale(
+                                    scale: scale,
+                                    alignment: Alignment.topLeft,
+                                    child: Icon(
+                                      Icons.touch_app,
+                                      size: 30,
+                                      color: isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan,
+                                      shadows: [
+                                        Shadow(
+                                          color: (isLast ? CyberTheme.neonGreen : CyberTheme.neonCyan)
+                                              .withValues(alpha: 0.8),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),

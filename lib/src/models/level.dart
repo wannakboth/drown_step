@@ -44,6 +44,22 @@ class Obstacle {
   final int height; // If drone height > obstacle height, it can fly over it!
 
   const Obstacle({required this.x, required this.y, required this.height});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'x': x,
+      'y': y,
+      'height': height,
+    };
+  }
+
+  factory Obstacle.fromJson(Map<String, dynamic> json) {
+    return Obstacle(
+      x: json['x'] as int,
+      y: json['y'] as int,
+      height: json['height'] as int,
+    );
+  }
 }
 
 class EnergyCell {
@@ -58,12 +74,31 @@ class EnergyCell {
     required this.height,
     this.charge = 5,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'x': x,
+      'y': y,
+      'height': height,
+      'charge': charge,
+    };
+  }
+
+  factory EnergyCell.fromJson(Map<String, dynamic> json) {
+    return EnergyCell(
+      x: json['x'] as int,
+      y: json['y'] as int,
+      height: json['height'] as int,
+      charge: json['charge'] as int? ?? 5,
+    );
+  }
 }
 
 enum GameMode {
   daily,
   normal,
   hard,
+  sandbox,
 }
 
 /// Identifies which UI element a tutorial step should highlight/point at.
@@ -141,6 +176,56 @@ class Level {
     required this.energyCells,
     required this.star3Target,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'hint': hint,
+      'gridWidth': gridWidth,
+      'gridHeight': gridHeight,
+      'startX': startX,
+      'startY': startY,
+      'startDirection': startDirection.index,
+      'boxX': boxX,
+      'boxY': boxY,
+      'targetX': targetX,
+      'targetY': targetY,
+      'initialBattery': initialBattery,
+      'obstacles': obstacles.map((o) => o.toJson()).toList(),
+      'energyCells': energyCells.map((e) => e.toJson()).toList(),
+      'star3Target': star3Target,
+    };
+  }
+
+  factory Level.fromJson(Map<String, dynamic> json) {
+    return Level(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      hint: json['hint'] as String?,
+      gridWidth: json['gridWidth'] as int,
+      gridHeight: json['gridHeight'] as int,
+      startX: json['startX'] as int,
+      startY: json['startY'] as int,
+      startDirection: Direction.values[json['startDirection'] as int],
+      boxX: json['boxX'] as int,
+      boxY: json['boxY'] as int,
+      targetX: json['targetX'] as int,
+      targetY: json['targetY'] as int,
+      initialBattery: json['initialBattery'] as int,
+      obstacles: (json['obstacles'] as List<dynamic>?)
+              ?.map((o) => Obstacle.fromJson(o as Map<String, dynamic>))
+              .toList() ??
+          [],
+      energyCells: (json['energyCells'] as List<dynamic>?)
+              ?.map((e) => EnergyCell.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      star3Target: json['star3Target'] as int? ?? 10,
+    );
+  }
 
   int get maxStars {
     if (id.startsWith('N')) {

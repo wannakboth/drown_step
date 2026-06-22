@@ -30,6 +30,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(audioControllerProvider);
+    });
   }
 
   @override
@@ -192,7 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               _buildModeTab(
                 mode: GameMode.daily,
-                label: 'DAILY MODE',
+                label: 'DAILY',
                 icon: Icons.bolt_rounded,
                 activeColor: CyberTheme.neonYellow,
                 isActive: activeMode == GameMode.daily,
@@ -206,10 +209,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               _buildModeTab(
                 mode: GameMode.hard,
-                label: 'HARD MODE',
+                label: 'HARD',
                 icon: Icons.dangerous_rounded,
                 activeColor: CyberTheme.neonPink,
                 isActive: activeMode == GameMode.hard,
+              ),
+              _buildModeTab(
+                mode: GameMode.sandbox,
+                label: 'SANDBOX',
+                icon: Icons.handyman_rounded,
+                activeColor: CyberTheme.neonGreen,
+                isActive: activeMode == GameMode.sandbox,
               ),
             ],
           ),
@@ -306,34 +316,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final seenTutorial = ref.watch(seenTutorialMissionsProvider);
     final maxUnlockedTutorial = ref.watch(maxUnlockedTutorialLevelProvider);
 
-    final levels = seenTutorial
-        ? Level.getLevelsForMode(gameMode)
-        : Level.tutorialMissions;
+    final sandboxLevels = ref.watch(sandboxLevelsProvider);
+    final List<Level> levels;
+    if (gameMode == GameMode.sandbox) {
+      levels = sandboxLevels;
+    } else {
+      levels = seenTutorial
+          ? Level.getLevelsForMode(gameMode)
+          : Level.tutorialMissions;
+    }
     final totalLevels = levels.length;
     final maxUnlockedIndex = seenTutorial ? maxUnlocked : maxUnlockedTutorial;
-    final visibleLevelsCount = gameMode == GameMode.daily
-        ? 1
-        : math.min(totalLevels, maxUnlockedIndex);
+    
+    final int visibleLevelsCount;
+    if (gameMode == GameMode.sandbox) {
+      visibleLevelsCount = levels.isEmpty ? 1 : (levels.length + 1);
+    } else if (gameMode == GameMode.daily) {
+      visibleLevelsCount = 1;
+    } else {
+      visibleLevelsCount = math.min(totalLevels, maxUnlockedIndex);
+    }
 
     final currentLevel = ref.watch(currentLevelProvider);
     int initialPageIndex = levels.indexWhere(
       (lvl) => lvl.id == currentLevel.id,
     );
     if (initialPageIndex == -1) {
-      int lastCompletedIndex = 0;
-      for (int i = 0; i < levels.length; i++) {
-        final stars = starsMap[levels[i].id] ?? 0;
-        if (stars > 0) {
-          lastCompletedIndex = i;
+      if (gameMode == GameMode.sandbox) {
+        initialPageIndex = 0;
+      } else {
+        int lastCompletedIndex = 0;
+        for (int i = 0; i < levels.length; i++) {
+          final stars = starsMap[levels[i].id] ?? 0;
+          if (stars > 0) {
+            lastCompletedIndex = i;
+          }
         }
+        if (lastCompletedIndex >= visibleLevelsCount) {
+          lastCompletedIndex = visibleLevelsCount - 1;
+        }
+        if (lastCompletedIndex < 0) {
+          lastCompletedIndex = 0;
+        }
+        initialPageIndex = lastCompletedIndex;
       }
-      if (lastCompletedIndex >= visibleLevelsCount) {
-        lastCompletedIndex = visibleLevelsCount - 1;
-      }
-      if (lastCompletedIndex < 0) {
-        lastCompletedIndex = 0;
-      }
-      initialPageIndex = lastCompletedIndex;
     }
 
     if (_pageController == null ||
@@ -358,6 +384,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       themeColor = CyberTheme.neonYellow;
     } else if (gameMode == GameMode.hard) {
       themeColor = CyberTheme.neonPink;
+    } else if (gameMode == GameMode.sandbox) {
+      themeColor = CyberTheme.neonGreen;
     }
 
     int totalStarsCollected = levels.fold(0, (sum, lvl) {
@@ -586,10 +614,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           });
                         },
                         itemBuilder: (context, index) {
+                          if (gameMode == GameMode.sandbox && (levels.isEmpty || index == levels.length)) {
+                            return AnimatedScale(
+                              scale: _currentPageIndex == index ? 1.0 : 0.93,
+                              duration: const Duration(milliseconds: 200),
+                              child: AnimatedOpacity(
+                                opacity: _currentPageIndex == index ? 1.0 : 0.6,
+                                duration: const Duration(milliseconds: 200),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10.0,
+                                    vertical: 20.0,
+                                  ),
+                                  child: _buildCreateSandboxCard(themeColor),
+                                ),
+                              ),
+                            );
+                          }
+
                           final level = levels[index];
                           final isLocked = gameMode == GameMode.daily
                               ? false
-                              : (index >= maxUnlockedIndex);
+                              : (gameMode == GameMode.sandbox ? false : (index >= maxUnlockedIndex));
                           final starsAchieved = starsMap[level.id] ?? 0;
 
                           return AnimatedScale(
@@ -932,62 +978,148 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 );
 
-          final actionButton = isLocked
-              ? CyberCard(
-                  borderColor: CyberTheme.textMuted.withValues(alpha: 0.2),
-                  backgroundColor: CyberTheme.textMuted.withValues(alpha: 0.05),
-                  borderWidth: 1.0,
-                  chamferSize: 8.0,
-                  showAccents: false,
-                  child: Container(
-                    height: isNarrowCard ? 44.0 : 52.0,
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    alignment: Alignment.center,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.lock_outline_rounded,
-                            color: CyberTheme.textMuted,
-                            size: isNarrowCard ? 16.0 : 20.0,
-                          ),
-                          const SizedBox(width: 8.0),
-                          Text(
-                            'CLASSIFIED / SECURE',
-                            style: CyberTheme.fontCode(
-                              size: isNarrowCard ? 11.5 : 13.0,
-                              color: CyberTheme.textMuted,
-                            ).copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              : InkWell(
-                  onTap: () async {
+          final Widget actionButton;
+          if (mode == GameMode.sandbox) {
+            actionButton = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InkWell(
+                  onTap: () {
                     _playClick();
-                    final curBattery = ref.read(pilotBatteryProvider);
-                    if (curBattery < 5) {
-                      _showLowBatteryDialog(context);
-                      return;
-                    }
-                    await ref
-                        .read(pilotBatteryProvider.notifier)
-                        .spendBattery(5);
                     ref.read(currentLevelProvider.notifier).setLevel(level);
                     ref.read(gameStateProvider.notifier).clearProgram();
                     ref.read(gameStateProvider.notifier).resetSimulation();
-                    ref
-                        .read(appScreenProvider.notifier)
-                        .toScreen(AppScreen.game);
+                    ref.read(appScreenProvider.notifier).toScreen(AppScreen.game);
                   },
                   child: CyberCard(
                     borderColor: themeColor,
                     backgroundColor: themeColor,
                     borderWidth: 0.0,
+                    chamferSize: 8.0,
+                    showAccents: false,
+                    child: Container(
+                      height: isNarrowCard ? 40.0 : 46.0,
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      alignment: Alignment.center,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.flight_takeoff_rounded, size: 18.0, color: Colors.black),
+                            const SizedBox(width: 8.0),
+                            Text(
+                              'TEST MISSION PROTOCOL',
+                              style: CyberTheme.fontHeading(size: 13.0, color: Colors.black),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () {
+                          _playClick();
+                          ref.read(editingSandboxLevelProvider.notifier).setLevel(level);
+                          ref.read(appScreenProvider.notifier).toScreen(AppScreen.sandboxEditor);
+                        },
+                        child: CyberCard(
+                          borderColor: CyberTheme.neonCyan,
+                          backgroundColor: Colors.transparent,
+                          borderWidth: 1.0,
+                          chamferSize: 6.0,
+                          showAccents: false,
+                          child: Container(
+                            height: isNarrowCard ? 36.0 : 40.0,
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.edit_rounded, size: 14.0, color: CyberTheme.neonCyan),
+                                const SizedBox(width: 6.0),
+                                Text(
+                                  'EDIT CONFIG',
+                                  style: CyberTheme.fontCode(size: 11.0, color: CyberTheme.neonCyan).copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          _playClick();
+                          final confirm = await showCyberDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF0E101A),
+                              title: Text(
+                                'DELETE PROTOCOL',
+                                style: CyberTheme.fontHeading(size: 16.0, color: CyberTheme.neonPink),
+                              ),
+                              content: Text(
+                                'Are you sure you want to permanently purge this custom mission structure?',
+                                style: CyberTheme.fontBody(size: 13.0, color: Colors.white70),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: Text('CANCEL', style: CyberTheme.fontCode(color: CyberTheme.textMuted)),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: Text('PURGE', style: CyberTheme.fontCode(color: CyberTheme.neonPink)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await ref.read(sandboxLevelsProvider.notifier).deleteLevel(level.id);
+                          }
+                        },
+                        child: CyberCard(
+                          borderColor: CyberTheme.neonPink.withValues(alpha: 0.8),
+                          backgroundColor: Colors.transparent,
+                          borderWidth: 1.0,
+                          chamferSize: 6.0,
+                          showAccents: false,
+                          child: Container(
+                            height: isNarrowCard ? 36.0 : 40.0,
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.delete_forever_rounded, size: 14.0, color: CyberTheme.neonPink),
+                                const SizedBox(width: 6.0),
+                                Text(
+                                  'PURGE',
+                                  style: CyberTheme.fontCode(size: 11.0, color: CyberTheme.neonPink).copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          } else {
+            actionButton = isLocked
+                ? CyberCard(
+                    borderColor: CyberTheme.textMuted.withValues(alpha: 0.2),
+                    backgroundColor: CyberTheme.textMuted.withValues(alpha: 0.05),
+                    borderWidth: 1.0,
                     chamferSize: 8.0,
                     showAccents: false,
                     child: Container(
@@ -1000,32 +1132,84 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.flight_takeoff_rounded,
+                              Icons.lock_outline_rounded,
+                              color: CyberTheme.textMuted,
                               size: isNarrowCard ? 16.0 : 20.0,
-                              color: themeColor == CyberTheme.neonYellow
-                                  ? CyberTheme.darkBg
-                                  : (themeColor == CyberTheme.neonPink
-                                        ? Colors.white
-                                        : CyberTheme.darkBg),
                             ),
                             const SizedBox(width: 8.0),
                             Text(
-                              'START LEVEL SIMULATION',
-                              style: CyberTheme.fontHeading(
-                                size: isNarrowCard ? 11.5 : 14.0,
+                              'CLASSIFIED / SECURE',
+                              style: CyberTheme.fontCode(
+                                size: isNarrowCard ? 11.5 : 13.0,
+                                color: CyberTheme.textMuted,
+                              ).copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                : InkWell(
+                    onTap: () async {
+                      _playClick();
+                      final curBattery = ref.read(pilotBatteryProvider);
+                      if (curBattery < 5) {
+                        _showLowBatteryDialog(context);
+                        return;
+                      }
+                      await ref
+                          .read(pilotBatteryProvider.notifier)
+                          .spendBattery(5);
+                      ref.read(currentLevelProvider.notifier).setLevel(level);
+                      ref.read(gameStateProvider.notifier).clearProgram();
+                      ref.read(gameStateProvider.notifier).resetSimulation();
+                      ref
+                          .read(appScreenProvider.notifier)
+                          .toScreen(AppScreen.game);
+                    },
+                    child: CyberCard(
+                      borderColor: themeColor,
+                      backgroundColor: themeColor,
+                      borderWidth: 0.0,
+                      chamferSize: 8.0,
+                      showAccents: false,
+                      child: Container(
+                        height: isNarrowCard ? 44.0 : 52.0,
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        alignment: Alignment.center,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.flight_takeoff_rounded,
+                                size: isNarrowCard ? 16.0 : 20.0,
                                 color: themeColor == CyberTheme.neonYellow
                                     ? CyberTheme.darkBg
                                     : (themeColor == CyberTheme.neonPink
                                           ? Colors.white
                                           : CyberTheme.darkBg),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8.0),
+                              Text(
+                                'START LEVEL SIMULATION',
+                                style: CyberTheme.fontHeading(
+                                  size: isNarrowCard ? 11.5 : 14.0,
+                                  color: themeColor == CyberTheme.neonYellow
+                                      ? CyberTheme.darkBg
+                                      : (themeColor == CyberTheme.neonPink
+                                            ? Colors.white
+                                            : CyberTheme.darkBg),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ).animate().shimmer(delay: 1000.ms, duration: 1500.ms);
+                  ).animate().shimmer(delay: 1000.ms, duration: 1500.ms);
+          }
 
           return Container(
             padding: EdgeInsets.all(paddingVal),
@@ -1086,6 +1270,65 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildCreateSandboxCard(Color themeColor) {
+    return CyberCard(
+      borderColor: themeColor,
+      backgroundColor: CyberTheme.cardBg,
+      borderWidth: 1.5,
+      chamferSize: 16.0,
+      showAccents: true,
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(
+              Icons.add_box_outlined,
+              size: 48.0,
+              color: themeColor,
+            ),
+            const SizedBox(height: 16.0),
+            Text(
+              'CREATOR OVERRIDE',
+              textAlign: TextAlign.center,
+              style: CyberTheme.fontHeading(size: 16.0, color: themeColor),
+            ),
+            const SizedBox(height: 8.0),
+            Text(
+              'Deploy a custom flight matrix sandbox to design custom obstacles, paths, and battery specs.',
+              textAlign: TextAlign.center,
+              style: CyberTheme.fontBody(size: 13.0, color: Colors.white70),
+            ),
+            const SizedBox(height: 24.0),
+            InkWell(
+              onTap: () {
+                _playClick();
+                ref.read(editingSandboxLevelProvider.notifier).setLevel(null);
+                ref.read(appScreenProvider.notifier).toScreen(AppScreen.sandboxEditor);
+              },
+              child: CyberCard(
+                borderColor: themeColor,
+                backgroundColor: themeColor,
+                borderWidth: 0.0,
+                chamferSize: 8.0,
+                showAccents: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  child: Text(
+                    'INITIALIZE CREATOR MODE',
+                    textAlign: TextAlign.center,
+                    style: CyberTheme.fontCode(size: 12.0, color: Colors.black).copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
