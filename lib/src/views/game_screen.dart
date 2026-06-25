@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -11,12 +12,16 @@ import '../providers/game_state.dart';
 import '../theme/colors.dart';
 import 'grid_painter.dart';
 import 'drone_sprite.dart';
+import 'helipad_widget.dart';
 import 'command_panel.dart';
 import 'cockpit_tab_painter.dart';
 import 'cyber_card.dart';
 import 'cyber_dialog.dart';
 import 'mission_preview_map.dart';
 import '../models/tutorial_keys.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'banner_ad_widget.dart';
+import '../providers/ad_helper.dart';
 
 class GameScreen extends ConsumerStatefulWidget {
   const GameScreen({super.key});
@@ -33,6 +38,16 @@ class _GameScreenState extends ConsumerState<GameScreen>
   bool _showCongratsSplash = false;
   bool _earnedDiamondThisRun = false;
 
+  RewardedInterstitialAd? _rewardedInterstitialAd;
+  bool _isRewardedInterstitialAdLoaded = false;
+
+  RewardedAd? _rewardedAd;
+  bool _isRewardedAdLoaded = false;
+
+  int _adCountdownSeconds = 3;
+  bool _showAdCountdown = false;
+  Timer? _adCountdownTimer;
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +56,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    _loadRewardedInterstitialAd();
+    _loadRewardedAd();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -51,10 +69,243 @@ class _GameScreenState extends ConsumerState<GameScreen>
     });
   }
 
+  void _loadRewardedInterstitialAd() {
+    RewardedInterstitialAd.load(
+      adUnitId: AdHelper.rewardedInterstitialAdUnitId,
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewardedInterstitialAd = ad;
+          _isRewardedInterstitialAdLoaded = true;
+
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {
+              if (mounted) {
+                ref.read(audioControllerProvider).pauseForAd();
+              }
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              if (mounted) {
+                ref.read(audioControllerProvider).resumeAfterAd();
+                ad.dispose();
+                _loadRewardedInterstitialAd();
+              } else {
+                ad.dispose();
+              }
+            },
+            onAdFailedToShowFullScreenContent: (ad, err) {
+              if (mounted) {
+                ref.read(audioControllerProvider).resumeAfterAd();
+                ad.dispose();
+                _loadRewardedInterstitialAd();
+              } else {
+                ad.dispose();
+              }
+            },
+          );
+        },
+        onAdFailedToLoad: (err) {
+          debugPrint('RewardedInterstitialAd failed to load: $err');
+          _isRewardedInterstitialAdLoaded = false;
+        },
+      ),
+    );
+  }
+
+  void _loadRewardedAd() {
+    RewardedAd.load(
+      adUnitId: AdHelper.rewardedAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          debugPrint('RewardedAd loaded successfully.');
+          _rewardedAd = ad;
+          _isRewardedAdLoaded = true;
+
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {
+              if (mounted) {
+                ref.read(audioControllerProvider).pauseForAd();
+              }
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              if (mounted) {
+                ref.read(audioControllerProvider).resumeAfterAd();
+                ad.dispose();
+                _loadRewardedAd();
+              } else {
+                ad.dispose();
+              }
+            },
+            onAdFailedToShowFullScreenContent: (ad, err) {
+              if (mounted) {
+                ref.read(audioControllerProvider).resumeAfterAd();
+                ad.dispose();
+                _loadRewardedAd();
+              } else {
+                ad.dispose();
+              }
+            },
+          );
+        },
+        onAdFailedToLoad: (err) {
+          debugPrint(
+            'RewardedAd failed to load: ${err.message} (code: ${err.code})',
+          );
+          _isRewardedAdLoaded = false;
+        },
+      ),
+    );
+  }
+
+  void _showHintRewardDialog() {
+    showCyberDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: CyberCard(
+            borderColor: CyberTheme.neonYellow,
+            backgroundColor: CyberTheme.darkBg,
+            chamferSize: 16.0,
+            showAccents: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 32.0,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'HINT REWARD',
+                    style: CyberTheme.fontHeading(
+                      size: 18.0,
+                      color: CyberTheme.neonYellow,
+                    ).copyWith(letterSpacing: 2.0),
+                  ),
+                  const SizedBox(height: 24.0),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: CyberTheme.neonYellow.withValues(alpha: 0.1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: CyberTheme.neonYellow.withValues(
+                                alpha: 0.2,
+                              ),
+                              blurRadius: 20.0,
+                              spreadRadius: 5.0,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.lightbulb_outline,
+                        color: CyberTheme.neonYellow,
+                        size: 48,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16.0),
+                  Text(
+                    '+1',
+                    style: CyberTheme.fontHeading(
+                      size: 32.0,
+                      color: CyberTheme.neonYellow,
+                    ).copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 24.0),
+                  SizedBox(
+                    width: 140,
+                    child: InkWell(
+                      onTap: () {
+                        _playSound('audio/click.wav');
+                        Navigator.pop(dialogContext);
+                      },
+                      child: CyberCard(
+                        borderColor: CyberTheme.neonYellow,
+                        backgroundColor: CyberTheme.neonYellow.withValues(
+                          alpha: 0.1,
+                        ),
+                        chamferSize: 8.0,
+                        showAccents: false,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10.0),
+                          child: Center(
+                            child: Text(
+                              'CLAIM',
+                              style: CyberTheme.fontCode(
+                                size: 12.0,
+                                color: CyberTheme.neonYellow,
+                              ).copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showRewardedInterstitialAd() {
+    if (_isRewardedInterstitialAdLoaded && _rewardedInterstitialAd != null) {
+      _rewardedInterstitialAd!.show(
+        onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+          debugPrint('User earned reward: ${reward.amount} ${reward.type}');
+        },
+      );
+    } else {
+      debugPrint('RewardedInterstitialAd not loaded yet.');
+    }
+  }
+
+  void _startAdCountdown() {
+    _adCountdownTimer?.cancel();
+    setState(() {
+      _showAdCountdown = true;
+      _adCountdownSeconds = 3;
+    });
+
+    _adCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_adCountdownSeconds > 1) {
+        setState(() {
+          _adCountdownSeconds--;
+        });
+      } else {
+        timer.cancel();
+        setState(() {
+          _showAdCountdown = false;
+          _delayedStatus = GameStatus.success;
+        });
+        _showRewardedInterstitialAd();
+      }
+    });
+  }
+
   @override
   void dispose() {
     _gridAnimationController.dispose();
     _stepScrollController.dispose();
+    _rewardedInterstitialAd?.dispose();
+    _rewardedAd?.dispose();
+    _adCountdownTimer?.cancel();
     super.dispose();
   }
 
@@ -84,6 +335,10 @@ class _GameScreenState extends ConsumerState<GameScreen>
     final state = ref.watch(gameStateProvider);
 
     ref.listen<bool>(soundOnProvider, (previous, next) {
+      _updateFlyingSound();
+    });
+
+    ref.listen<bool>(humOnProvider, (previous, next) {
       _updateFlyingSound();
     });
 
@@ -163,8 +418,15 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 if (mounted) {
                   setState(() {
                     _showCongratsSplash = false;
-                    _delayedStatus = GameStatus.success;
                   });
+                  if (_isRewardedInterstitialAdLoaded &&
+                      _rewardedInterstitialAd != null) {
+                    _startAdCountdown();
+                  } else {
+                    setState(() {
+                      _delayedStatus = GameStatus.success;
+                    });
+                  }
                 }
               });
             }
@@ -319,34 +581,44 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                   final height = paddedConstraints.maxHeight;
 
                                   const toggleHeight = 36.0;
-                                  const double hudHeight = 128.0;
+                                  final double currentHudHeight = isExpanded
+                                      ? 80.0
+                                      : 128.0;
 
                                   final targetPanelHeight = isExpanded
-                                      ? (height * 0.70)
+                                      ? (height * 0.58)
                                       : 66.0;
 
                                   // Compute dynamic grid height in editor mode
-                                  final double gridHeight = math.max(
-                                    isExpanded ? 50.0 : 100.0,
-                                    height -
-                                        toggleHeight -
-                                        hudHeight -
-                                        targetPanelHeight -
-                                        24.0,
-                                  );
+                                  final double gridHeight = isExpanded
+                                      ? 100.0
+                                      : math.max(
+                                          140.0,
+                                          height -
+                                              toggleHeight -
+                                              currentHudHeight -
+                                              targetPanelHeight -
+                                              24.0,
+                                        );
 
                                   // Ensure panelHeight adjusts to fit exactly within screen height limit
-                                  final double panelHeight = math.min(
-                                    targetPanelHeight,
-                                    math.max(
-                                      66.0,
-                                      height -
-                                          gridHeight -
-                                          toggleHeight -
-                                          hudHeight -
-                                          24.0,
-                                    ),
-                                  );
+                                  final double panelHeight = isExpanded
+                                      ? (height -
+                                            gridHeight -
+                                            toggleHeight -
+                                            currentHudHeight -
+                                            24.0)
+                                      : math.min(
+                                          targetPanelHeight,
+                                          math.max(
+                                            66.0,
+                                            height -
+                                                gridHeight -
+                                                toggleHeight -
+                                                currentHudHeight -
+                                                24.0,
+                                          ),
+                                        );
 
                                   return Stack(
                                     clipBehavior: Clip.none,
@@ -361,7 +633,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                         right: 0,
                                         top: isFlyingFullscreen
                                             ? 0
-                                            : (hudHeight + 10.0),
+                                            : (currentHudHeight + 10.0),
                                         height: isFlyingFullscreen
                                             ? height
                                             : gridHeight,
@@ -403,7 +675,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                         right: 0,
                                         top: isFlyingFullscreen
                                             ? height
-                                            : (hudHeight +
+                                            : (currentHudHeight +
                                                   10.0 +
                                                   gridHeight +
                                                   2.0),
@@ -461,7 +733,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                             ? (height - 138.0 - 10.0)
                                             : (gridHeight +
                                                   toggleHeight +
-                                                  hudHeight +
+                                                  currentHudHeight +
                                                   24.0),
                                         height: isFlyingFullscreen
                                             ? 138.0
@@ -488,11 +760,17 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 },
                               ),
                       ),
+                      if (!isFlyingFullscreen) ...[
+                        const SizedBox(height: 4.0),
+                        BannerAdWidget(adSize: AdSize(width: 320, height: 36)),
+                      ],
                     ],
                   ),
                 ),
                 if (_showCongratsSplash)
                   Positioned.fill(child: _buildCongratsSplash()),
+                if (_showAdCountdown)
+                  Positioned.fill(child: _buildAdCountdownOverlay()),
                 if (_delayedStatus == GameStatus.success)
                   Positioned.fill(child: _buildSuccessOverlay(state)),
                 if (_delayedStatus == GameStatus.crashed)
@@ -595,9 +873,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                   shadows: isHovered
                                       ? [
                                           Shadow(
-                                            color: CyberTheme.neonCyan.withValues(
-                                              alpha: 0.5,
-                                            ),
+                                            color: CyberTheme.neonCyan
+                                                .withValues(alpha: 0.5),
                                             blurRadius: 5.0,
                                           ),
                                         ]
@@ -608,12 +885,15 @@ class _GameScreenState extends ConsumerState<GameScreen>
                           AnimatedRotation(
                             turns: isExpanded ? 0.0 : 0.5,
                             duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              Icons.keyboard_arrow_down,
-                              color: CyberTheme.neonCyan.withValues(
-                                alpha: isHovered ? 1.0 : 0.7,
+                            child: SizedBox(
+                              width: 14.0,
+                              height: 14.0,
+                              child: CustomPaint(
+                                painter: CyberExpandIconPainter(
+                                  color: CyberTheme.neonCyan,
+                                  hoverVal: isHovered ? 1.0 : 0.0,
+                                ),
                               ),
-                              size: 18.0,
                             ),
                           ),
                         ],
@@ -648,8 +928,15 @@ class _GameScreenState extends ConsumerState<GameScreen>
             // Left: Brand Title & Dynamic Sector Selection
             _buildLeftTitleSelector(context, activeLevel),
 
-            // Right: Settings Button
-            _buildRightSettingsButton(context, activeLevel),
+            // Right: Hint Button & Settings Button
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHintButton(context, activeLevel),
+                const SizedBox(width: 8.0),
+                _buildRightSettingsButton(context, activeLevel),
+              ],
+            ),
           ],
         ),
       ),
@@ -758,6 +1045,577 @@ class _GameScreenState extends ConsumerState<GameScreen>
     );
   }
 
+  Widget _buildHintButton(BuildContext context, Level activeLevel) {
+    return Consumer(
+      builder: (context, ref, child) {
+        final remainingKeys = ref.watch(remainingHintsProvider);
+        return InkWell(
+          key: TutorialKeys.hint,
+          onTap: () {
+            _playSound('audio/click.wav');
+            final isShown = ref.read(showHintGuidanceProvider);
+            if (isShown) {
+              // If already open, just toggle it closed without deducting keys
+              ref.read(showHintGuidanceProvider.notifier).set(false);
+            } else {
+              // If closed, we want to open it. Check deduction rules:
+              final gameState = ref.read(gameStateProvider);
+              final startState = simulateProgramToState(
+                activeLevel,
+                gameState.program,
+              );
+              final path = solveLevelBFS(activeLevel, startState: startState);
+              final hasMoreSteps = path != null && path.isNotEmpty;
+
+              if (!hasMoreSteps) {
+                // No more steps (already solved or crashed), just open for free
+                ref.read(showHintGuidanceProvider.notifier).set(true);
+              } else if (activeLevel.id.startsWith('T')) {
+                // Tutorial levels are free
+                ref.read(showHintGuidanceProvider.notifier).set(true);
+              } else {
+                // Regular levels deduct keys when opening
+                if (remainingKeys > 0) {
+                  ref
+                      .read(unlockedHintsProvider.notifier)
+                      .unlockHint(activeLevel.id);
+                  ref.read(showHintGuidanceProvider.notifier).set(true);
+                } else {
+                  _showHintPurchaseDialog(context, activeLevel);
+                }
+              }
+            }
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CyberCard(
+                borderColor: CyberTheme.neonYellow,
+                backgroundColor: Colors.transparent,
+                borderWidth: 1.0,
+                chamferSize: 6.0,
+                showAccents: false,
+                child: Container(
+                  padding: const EdgeInsets.all(8.0),
+                  child: const Icon(
+                    Icons.lightbulb_outline,
+                    color: CyberTheme.neonYellow,
+                    size: 20.0,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: -6,
+                top: -6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5.0,
+                    vertical: 2.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: CyberTheme.neonYellow,
+                    borderRadius: BorderRadius.circular(10.0),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CyberTheme.neonYellow.withValues(alpha: 0.4),
+                        blurRadius: 4.0,
+                        spreadRadius: 1.0,
+                      ),
+                    ],
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$remainingKeys',
+                      style: CyberTheme.fontCode(
+                        size: 9.0,
+                        color: CyberTheme.darkBg,
+                      ).copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showHintPurchaseDialog(BuildContext context, Level activeLevel) {
+    showCyberDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Consumer(
+              builder: (context, ref, child) {
+                final remainingKeys = ref.watch(remainingHintsProvider);
+                final diamonds = ref.watch(diamondProvider);
+
+                return Dialog(
+                  backgroundColor: Colors.transparent,
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                    vertical: 24.0,
+                  ),
+                  child: CyberCard(
+                    borderColor: CyberTheme.neonYellow,
+                    backgroundColor: CyberTheme.cardBg,
+                    borderWidth: 1.5,
+                    chamferSize: 16.0,
+                    showAccents: true,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.lightbulb,
+                                color: CyberTheme.neonYellow,
+                                size: 22.0,
+                              ),
+                              const SizedBox(width: 8.0),
+                              Text(
+                                'DECRYPTOR OUT OF HINTS',
+                                style: CyberTheme.fontHeading(
+                                  size: 15.0,
+                                  color: CyberTheme.neonYellow,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16.0),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'KEYS AVAILABLE',
+                                    style: CyberTheme.fontCode(
+                                      size: 10.0,
+                                      color: CyberTheme.textMuted,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4.0),
+                                  Text(
+                                    '$remainingKeys',
+                                    style: CyberTheme.fontHeading(
+                                      size: 18.0,
+                                      color: CyberTheme.neonYellow,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    'DIAMONDS BALANCE',
+                                    style: CyberTheme.fontCode(
+                                      size: 10.0,
+                                      color: CyberTheme.textMuted,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4.0),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.diamond,
+                                        color: CyberTheme.neonCyan,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 4.0),
+                                      Text(
+                                        '$diamonds',
+                                        style: CyberTheme.fontHeading(
+                                          size: 18.0,
+                                          color: CyberTheme.neonCyan,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16.0),
+                          Text(
+                            'Decrypting sector telemetry paths requires Hint Keys. Choose a recharge protocol:',
+                            style: CyberTheme.fontBody(
+                              size: 12.0,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 20.0),
+                          InkWell(
+                            onTap: () async {
+                              _playSound('audio/click.wav');
+                              final boughtHintsNotifier = ref.read(
+                                boughtHintsProvider.notifier,
+                              );
+                              final audioController = ref.read(
+                                audioControllerProvider,
+                              );
+
+                              // Show a connecting loading spinner dialog
+                              showCyberDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (dialogContext) {
+                                  return Dialog(
+                                    backgroundColor: Colors.transparent,
+                                    child: CyberCard(
+                                      borderColor: CyberTheme.neonYellow,
+                                      backgroundColor: CyberTheme.darkBg,
+                                      chamferSize: 12.0,
+                                      showAccents: false,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const CircularProgressIndicator(
+                                              valueColor:
+                                                  AlwaysStoppedAnimation(
+                                                    CyberTheme.neonYellow,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 16.0),
+                                            Text(
+                                              'CONNECTING TO AD NETWORK...',
+                                              style: CyberTheme.fontCode(
+                                                size: 12.0,
+                                                color: CyberTheme.neonYellow,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+
+                              // If the ad is not loaded, start loading it now
+                              if (!_isRewardedAdLoaded || _rewardedAd == null) {
+                                _loadRewardedAd();
+                              }
+
+                              // Wait up to 3 seconds (30 * 100ms) for the ad to finish loading
+                              int checkCount = 0;
+                              while (!_isRewardedAdLoaded && checkCount < 30) {
+                                await Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                );
+                                checkCount++;
+                              }
+
+                              // Dismiss the connecting spinner dialog
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
+
+                              // Check if the ad loaded successfully
+                              if (_isRewardedAdLoaded && _rewardedAd != null) {
+                                // Dismiss the Hint Purchase Dialog
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                }
+                                _rewardedAd!.show(
+                                  onUserEarnedReward:
+                                      (
+                                        AdWithoutView ad,
+                                        RewardItem reward,
+                                      ) async {
+                                        await boughtHintsNotifier
+                                            .addBoughtHints(1);
+
+                                        if (mounted) {
+                                          audioController.playPickup();
+                                          _showHintRewardDialog();
+                                        }
+                                      },
+                                );
+                              } else {
+                                // Fallback to simulated ad stream if it failed or timed out
+                                int secondsLeft =
+                                    30 + math.Random().nextInt(31);
+                                Timer? countdownTimer;
+
+                                showCyberDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (dialogContext) {
+                                    return StatefulBuilder(
+                                      builder: (context, setDialogState) {
+                                        countdownTimer ??= Timer.periodic(
+                                          const Duration(seconds: 1),
+                                          (timer) async {
+                                            if (secondsLeft > 1) {
+                                              if (dialogContext.mounted) {
+                                                setDialogState(() {
+                                                  secondsLeft--;
+                                                });
+                                              }
+                                            } else {
+                                              timer.cancel();
+                                              if (dialogContext.mounted) {
+                                                Navigator.pop(
+                                                  dialogContext,
+                                                ); // Close simulated ad dialog
+                                                Navigator.pop(
+                                                  context,
+                                                ); // Close Hint Purchase Dialog
+
+                                                await boughtHintsNotifier
+                                                    .addBoughtHints(1);
+
+                                                if (mounted) {
+                                                  audioController.playPickup();
+                                                  _showHintRewardDialog();
+                                                }
+                                              }
+                                            }
+                                          },
+                                        );
+
+                                        return Dialog(
+                                          backgroundColor: Colors.transparent,
+                                          child: CyberCard(
+                                            borderColor: CyberTheme.neonYellow,
+                                            backgroundColor: CyberTheme.darkBg,
+                                            chamferSize: 12.0,
+                                            showAccents: false,
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(
+                                                24.0,
+                                              ),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    '$secondsLeft',
+                                                    style:
+                                                        CyberTheme.fontHeading(
+                                                          size: 48.0,
+                                                          color: CyberTheme
+                                                              .neonYellow,
+                                                        ).copyWith(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          shadows: [
+                                                            Shadow(
+                                                              color: CyberTheme
+                                                                  .neonYellow
+                                                                  .withValues(
+                                                                    alpha: 0.5,
+                                                                  ),
+                                                              blurRadius: 12.0,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 16.0),
+                                                  Text(
+                                                    'STREAMING AD DATA LINK...',
+                                                    style: CyberTheme.fontCode(
+                                                      size: 12.0,
+                                                      color:
+                                                          CyberTheme.neonYellow,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ).then((_) {
+                                  countdownTimer?.cancel();
+                                });
+                              }
+                            },
+                            child: CyberCard(
+                              borderColor: CyberTheme.neonYellow,
+                              backgroundColor: Colors.transparent,
+                              borderWidth: 1.0,
+                              chamferSize: 8.0,
+                              showAccents: false,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.ondemand_video,
+                                      color: CyberTheme.neonYellow,
+                                    ),
+                                    const SizedBox(width: 12.0),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'STREAM TELEMETRY AD',
+                                            style:
+                                                CyberTheme.fontCode(
+                                                  size: 13.0,
+                                                  color: CyberTheme.neonYellow,
+                                                ).copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                          const SizedBox(height: 2.0),
+                                          Text(
+                                            'Free: Watch 1 Ad to receive 1 Hint Key',
+                                            style: CyberTheme.fontCode(
+                                              size: 10.0,
+                                              color: CyberTheme.textMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 14.0,
+                                      color: CyberTheme.neonYellow,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12.0),
+                          InkWell(
+                            onTap: diamonds >= 100
+                                ? () async {
+                                    _playSound('audio/click.wav');
+                                    Navigator.pop(context);
+
+                                    final success = await ref
+                                        .read(diamondProvider.notifier)
+                                        .spendDiamonds(100);
+                                    if (success) {
+                                      await ref
+                                          .read(boughtHintsProvider.notifier)
+                                          .addBoughtHints(5);
+                                      _playSound('audio/success.wav');
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          backgroundColor: CyberTheme.cardBg,
+                                          content: Text(
+                                            'EXCHANGED: 100 DIAMONDS FOR +5 HINT KEYS',
+                                            style: CyberTheme.fontCode(
+                                              color: CyberTheme.neonCyan,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                : null,
+                            child: CyberCard(
+                              borderColor: diamonds >= 100
+                                  ? CyberTheme.neonCyan
+                                  : CyberTheme.borderTranslucent,
+                              backgroundColor: Colors.transparent,
+                              borderWidth: 1.0,
+                              chamferSize: 8.0,
+                              showAccents: false,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Opacity(
+                                  opacity: diamonds >= 100 ? 1.0 : 0.5,
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.diamond,
+                                        color: CyberTheme.neonCyan,
+                                      ),
+                                      const SizedBox(width: 12.0),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'EXCHANGE DIAMONDS',
+                                              style:
+                                                  CyberTheme.fontCode(
+                                                    size: 13.0,
+                                                    color: CyberTheme.neonCyan,
+                                                  ).copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 2.0),
+                                            Text(
+                                              'Cost: 100 Diamonds to receive 5 Hint Keys',
+                                              style: CyberTheme.fontCode(
+                                                size: 10.0,
+                                                color: CyberTheme.textMuted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 14.0,
+                                        color: diamonds >= 100
+                                            ? CyberTheme.neonCyan
+                                            : CyberTheme.textMuted,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20.0),
+                          GestureDetector(
+                            onTap: () {
+                              _playSound('audio/click.wav');
+                              Navigator.pop(context);
+                            },
+                            child: Center(
+                              child: Text(
+                                'DISMISS',
+                                style: CyberTheme.fontCode(
+                                  size: 12.0,
+                                  color: CyberTheme.textMuted,
+                                ).copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showSettingsDialog(BuildContext context, Level activeLevel) {
     showCyberDialog(
       context: context,
@@ -856,7 +1714,10 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         const SizedBox(height: 12.0),
                         Text(
                           'SFX VOLUME: ${(ref.watch(sfxVolumeProvider) * 100).round()}%',
-                          style: CyberTheme.fontCode(size: 11.0, color: CyberTheme.neonGreen).copyWith(fontWeight: FontWeight.bold),
+                          style: CyberTheme.fontCode(
+                            size: 11.0,
+                            color: CyberTheme.neonGreen,
+                          ).copyWith(fontWeight: FontWeight.bold),
                         ),
                         Slider(
                           value: ref.watch(sfxVolumeProvider),
@@ -871,23 +1732,31 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         Row(
                           children: [
                             Icon(
-                              ref.watch(bgmOnProvider) ? Icons.music_note : Icons.music_off,
+                              ref.watch(bgmOnProvider)
+                                  ? Icons.music_note
+                                  : Icons.music_off,
                               size: 18.0,
-                              color: ref.watch(bgmOnProvider) ? CyberTheme.neonCyan : CyberTheme.textMuted,
+                              color: ref.watch(bgmOnProvider)
+                                  ? CyberTheme.neonCyan
+                                  : CyberTheme.textMuted,
                             ),
                             const SizedBox(width: 8.0),
                             Text(
                               'AMBIENT BGM',
                               style: CyberTheme.fontCode(
                                 size: 12.0,
-                                color: ref.watch(bgmOnProvider) ? CyberTheme.neonCyan : CyberTheme.textMuted,
+                                color: ref.watch(bgmOnProvider)
+                                    ? CyberTheme.neonCyan
+                                    : CyberTheme.textMuted,
                               ).copyWith(fontWeight: FontWeight.bold),
                             ),
                             const Spacer(),
                             Switch(
                               value: ref.watch(bgmOnProvider),
                               activeThumbColor: CyberTheme.neonCyan,
-                              activeTrackColor: CyberTheme.neonCyan.withValues(alpha: 0.3),
+                              activeTrackColor: CyberTheme.neonCyan.withValues(
+                                alpha: 0.3,
+                              ),
                               inactiveThumbColor: CyberTheme.textMuted,
                               inactiveTrackColor: Colors.white10,
                               onChanged: (v) {
@@ -913,23 +1782,30 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         Row(
                           children: [
                             Icon(
-                              ref.watch(humOnProvider) ? Icons.waves : Icons.blur_off,
+                              ref.watch(humOnProvider)
+                                  ? Icons.waves
+                                  : Icons.blur_off,
                               size: 18.0,
-                              color: ref.watch(humOnProvider) ? CyberTheme.neonYellow : CyberTheme.textMuted,
+                              color: ref.watch(humOnProvider)
+                                  ? CyberTheme.neonYellow
+                                  : CyberTheme.textMuted,
                             ),
                             const SizedBox(width: 8.0),
                             Text(
                               'REACTOR COCKPIT HUM',
                               style: CyberTheme.fontCode(
                                 size: 12.0,
-                                color: ref.watch(humOnProvider) ? CyberTheme.neonYellow : CyberTheme.textMuted,
+                                color: ref.watch(humOnProvider)
+                                    ? CyberTheme.neonYellow
+                                    : CyberTheme.textMuted,
                               ).copyWith(fontWeight: FontWeight.bold),
                             ),
                             const Spacer(),
                             Switch(
                               value: ref.watch(humOnProvider),
                               activeThumbColor: CyberTheme.neonYellow,
-                              activeTrackColor: CyberTheme.neonYellow.withValues(alpha: 0.3),
+                              activeTrackColor: CyberTheme.neonYellow
+                                  .withValues(alpha: 0.3),
                               inactiveThumbColor: CyberTheme.textMuted,
                               inactiveTrackColor: Colors.white10,
                               onChanged: (v) {
@@ -979,93 +1855,43 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       ),
                       const SizedBox(height: 10.0),
 
-                      // Hint & AI Copilot Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                _playSound('audio/click.wav');
-                                Navigator.pop(context);
-                                _showHintDialog(context, activeLevel);
-                              },
-                              child: CyberCard(
-                                borderColor: CyberTheme.neonYellow.withValues(
-                                  alpha: 0.7,
+                      // AI Copilot Button
+                      InkWell(
+                        onTap: () {
+                          _playSound('audio/click.wav');
+                          Navigator.pop(context);
+                          _showAiCopilotDialog(context, activeLevel);
+                        },
+                        child: CyberCard(
+                          borderColor: CyberTheme.neonPurple.withValues(
+                            alpha: 0.7,
+                          ),
+                          backgroundColor: Colors.transparent,
+                          borderWidth: 1.0,
+                          chamferSize: 8.0,
+                          showAccents: false,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.psychology,
+                                  color: CyberTheme.neonPurple,
+                                  size: 16.0,
                                 ),
-                                backgroundColor: Colors.transparent,
-                                borderWidth: 1.0,
-                                chamferSize: 8.0,
-                                showAccents: false,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10.0,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.lightbulb_outline,
-                                        color: CyberTheme.neonYellow,
-                                        size: 16.0,
-                                      ),
-                                      const SizedBox(width: 6.0),
-                                      Text(
-                                        'HINT BRIEF',
-                                        style: CyberTheme.fontCode(
-                                          size: 11.5,
-                                          color: CyberTheme.neonYellow,
-                                        ).copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
-                                  ),
+                                const SizedBox(width: 6.0),
+                                Text(
+                                  'AI COPILOT',
+                                  style: CyberTheme.fontCode(
+                                    size: 11.5,
+                                    color: CyberTheme.neonPurple,
+                                  ).copyWith(fontWeight: FontWeight.bold),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 10.0),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () {
-                                _playSound('audio/click.wav');
-                                Navigator.pop(context);
-                                _showAiCopilotDialog(context, activeLevel);
-                              },
-                              child: CyberCard(
-                                borderColor: CyberTheme.neonPurple.withValues(
-                                  alpha: 0.7,
-                                ),
-                                backgroundColor: Colors.transparent,
-                                borderWidth: 1.0,
-                                chamferSize: 8.0,
-                                showAccents: false,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10.0,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.psychology,
-                                        color: CyberTheme.neonPurple,
-                                        size: 16.0,
-                                      ),
-                                      const SizedBox(width: 6.0),
-                                      Text(
-                                        'AI COPILOT',
-                                        style: CyberTheme.fontCode(
-                                          size: 11.5,
-                                          color: CyberTheme.neonPurple,
-                                        ).copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                       const SizedBox(height: 12.0),
 
@@ -1340,7 +2166,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                             showAccents: false,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16.0, vertical: 10.0),
+                                horizontal: 16.0,
+                                vertical: 10.0,
+                              ),
                               child: Text(
                                 'CONFIRM',
                                 style: CyberTheme.fontCode(
@@ -1382,7 +2210,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
         final cellWidth = width / level.gridWidth;
         final cellHeight = height / level.gridHeight;
-        final droneSize = math.min(cellWidth, cellHeight) * 0.65;
+        final cellSize = math.min(cellWidth, cellHeight);
+        final hUnit = cellSize * 0.5625;
+        final droneSize = cellSize * 0.90;
 
         final droneLeft =
             state.droneX * cellWidth + (cellWidth - droneSize) / 2;
@@ -1395,94 +2225,554 @@ class _GameScreenState extends ConsumerState<GameScreen>
         final cargoTop =
             level.boxY * cellHeight + (cellHeight - cargoBoxSize) / 2;
 
+        final targetSize = math.min(cellWidth, cellHeight) * 0.55;
+        final targetLeft =
+            level.targetX * cellWidth + (cellWidth - targetSize) / 2;
+        final targetTop =
+            level.targetY * cellHeight + (cellHeight - targetSize) / 2;
+
         return Center(
-          child: CyberCard(
+          child: SizedBox(
             key: TutorialKeys.gridArena,
-            borderColor: CyberTheme.borderTranslucent,
-            backgroundColor: CyberTheme.gridBg,
-            borderWidth: 1.0,
-            chamferSize: 16.0,
-            showAccents: false,
-            shadows: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 30.0,
-                spreadRadius: -10.0,
-              ),
-            ],
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: ClipPath(
-                clipper: CyberCardClipper(chamferSize: 16.0),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Grid Painter & Cargo Overlay
-                    AnimatedBuilder(
-                      animation: _gridAnimationController,
-                      builder: (context, child) {
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            CustomPaint(
-                              size: Size(width, height),
-                              painter: GameGridPainter(
-                                level: level,
-                                droneX: state.droneX,
-                                droneY: state.droneY,
-                                droneHeight: state.droneHeight,
-                                remainingEnergyCells:
-                                    state.remainingEnergyCells,
-                                pathHistory: state.pathHistory,
-                                animationValue: _gridAnimationController.value,
-                                hasCargo: state.hasCargo,
-                                status: state.status,
+            width: width,
+            height: height,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.001) // Perspective tilt
+                      ..rotateX(0.55) // Tilt backward
+                      ..rotateZ(-0.45) // Rotate slightly
+                      ..multiply(
+                        Matrix4.diagonal3Values(0.82, 0.82, 1.0),
+                      ), // Scale down slightly to fit beautifully
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // 3D Land Base (extruded floating plate using Z-translation)
+                        ...List.generate(9, (i) {
+                          final index = 8 - i;
+                          if (index == 8) {
+                            // Underglow shadow layer
+                            return Transform(
+                              transform: Matrix4.translationValues(0, 0, -32.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          (state.status == GameStatus.crashed
+                                                  ? CyberTheme.neonPink
+                                                  : (state.status ==
+                                                            GameStatus.success
+                                                        ? CyberTheme.neonGreen
+                                                        : CyberTheme.neonCyan))
+                                              .withValues(alpha: 0.35),
+                                      blurRadius: 30.0,
+                                      spreadRadius: 8.0,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          final zOffset = -index * 3.5;
+                          final opacity = 0.95 - (index * 0.05);
+                          return Transform(
+                            transform: Matrix4.translationValues(0, 0, zOffset),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: index == 0
+                                    ? const LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Color(0xFF0F1527),
+                                          Color(0xFF070B16),
+                                        ],
+                                      )
+                                    : null,
+                                color: index == 0
+                                    ? null
+                                    : const Color(
+                                        0xFF04060C,
+                                      ).withValues(alpha: opacity),
+                                border: index == 0
+                                    ? Border.all(
+                                        color:
+                                            state.status == GameStatus.crashed
+                                            ? CyberTheme.neonPink.withValues(
+                                                alpha: 0.8,
+                                              )
+                                            : (state.status ==
+                                                      GameStatus.success
+                                                  ? CyberTheme.neonGreen
+                                                        .withValues(alpha: 0.8)
+                                                  : CyberTheme.neonCyan
+                                                        .withValues(
+                                                          alpha: 0.5,
+                                                        )),
+                                        width: 1.5,
+                                      )
+                                    : Border(
+                                        bottom: BorderSide(
+                                          color:
+                                              state.status == GameStatus.crashed
+                                              ? CyberTheme.neonPink.withValues(
+                                                  alpha: 0.25,
+                                                )
+                                              : (state.status ==
+                                                        GameStatus.success
+                                                    ? CyberTheme.neonGreen
+                                                          .withValues(
+                                                            alpha: 0.25,
+                                                          )
+                                                    : CyberTheme.neonCyan
+                                                          .withValues(
+                                                            alpha: 0.25,
+                                                          )),
+                                          width: 1.0,
+                                        ),
+                                        left: BorderSide(
+                                          color:
+                                              state.status == GameStatus.crashed
+                                              ? CyberTheme.neonPink.withValues(
+                                                  alpha: 0.15,
+                                                )
+                                              : (state.status ==
+                                                        GameStatus.success
+                                                    ? CyberTheme.neonGreen
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          )
+                                                    : CyberTheme.neonCyan
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          )),
+                                          width: 1.0,
+                                        ),
+                                        right: BorderSide(
+                                          color:
+                                              state.status == GameStatus.crashed
+                                              ? CyberTheme.neonPink.withValues(
+                                                  alpha: 0.15,
+                                                )
+                                              : (state.status ==
+                                                        GameStatus.success
+                                                    ? CyberTheme.neonGreen
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          )
+                                                    : CyberTheme.neonCyan
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          )),
+                                          width: 1.0,
+                                        ),
+                                      ),
                               ),
                             ),
-                            CargoBoxWidget(
-                              left: cargoLeft,
-                              top: cargoTop,
-                              size: cargoBoxSize,
-                              hasCargo: state.hasCargo,
-                              speedMultiplier: state.speedMultiplier,
-                              animationValue: _gridAnimationController.value,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                          );
+                        }),
 
-                    // Custom Animated Drone Sprite
-                    AnimatedPositioned(
-                      duration: state.status == GameStatus.running
-                          ? Duration(
-                              milliseconds: (700 / state.speedMultiplier)
-                                  .round(),
-                            )
-                          : Duration.zero,
-                      curve: Curves.easeInOutCubic,
-                      left: droneLeft,
-                      top: droneTop,
-                      width: droneSize,
-                      height: droneSize,
-                      child: Center(
-                        child: DroneSprite(
-                          size: droneSize,
-                          height: state.droneHeight,
-                          direction: state.droneDirection,
-                          isFlying:
-                              state.droneHeight > 0 &&
-                              state.status == GameStatus.running,
-                          hasCargo: state.hasCargo,
-                          status: state.status,
-                          speedMultiplier: state.speedMultiplier,
+                        // Radar Sweeper (tilted in 3D, sweeping on the land surface)
+                        if (state.status != GameStatus.crashed)
+                          const Positioned.fill(child: RadarSweeper()),
+
+                        // 3D Target Pad (Volumetric 3D Helipad Widget)
+                        Positioned(
+                          left: targetLeft,
+                          top: targetTop,
+                          width: targetSize,
+                          height: targetSize,
+                          child:
+                              Stack(
+                                    alignment: Alignment.center,
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      HelipadWidget(size: targetSize),
+                                      Positioned(
+                                        bottom: -2,
+                                        child: Transform(
+                                          transform: Matrix4.translationValues(
+                                            0,
+                                            0,
+                                            16.0,
+                                          ),
+                                          child: Text(
+                                            state.status == GameStatus.success
+                                                ? 'SECURED'
+                                                : 'DROP',
+                                            style:
+                                                CyberTheme.fontCode(
+                                                  size: 9.0,
+                                                  color: CyberTheme.neonGreen,
+                                                ).copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                  .animate(
+                                    onPlay: (c) => c.repeat(reverse: true),
+                                  )
+                                  .scale(
+                                    duration: 1500.ms,
+                                    begin: const Offset(0.9, 0.9),
+                                    end: const Offset(1.05, 1.05),
+                                  ),
                         ),
-                      ),
+
+                        // Grid Painter & Cargo Overlay
+                        AnimatedBuilder(
+                          animation: _gridAnimationController,
+                          builder: (context, child) {
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CustomPaint(
+                                  size: Size(width, height),
+                                  painter: GameGridPainter(
+                                    level: level,
+                                    droneX: state.droneX,
+                                    droneY: state.droneY,
+                                    droneHeight: state.droneHeight,
+                                    remainingEnergyCells:
+                                        state.remainingEnergyCells,
+                                    pathHistory: state.pathHistory,
+                                    animationValue:
+                                        _gridAnimationController.value,
+                                    hasCargo: state.hasCargo,
+                                    status: state.status,
+                                  ),
+                                ),
+                                CargoBoxWidget(
+                                  left: cargoLeft,
+                                  top: cargoTop,
+                                  size: cargoBoxSize,
+                                  hasCargo: state.hasCargo,
+                                  speedMultiplier: state.speedMultiplier,
+                                  animationValue:
+                                      _gridAnimationController.value,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+
+                        // Volumetric Obstacles (holographic stacked pillars using Z-translation)
+                        ...List.generate(level.obstacles.length, (i) {
+                          final obs = level.obstacles[i];
+                          final obsSize = cellSize * 0.75;
+                          final obsLeft =
+                              obs.x * cellWidth + (cellWidth - obsSize) / 2;
+                          final obsTop =
+                              obs.y * cellHeight + (cellHeight - obsSize) / 2;
+
+                          final numLayers = obs.height * 10;
+                          final totalHeight = obs.height * hUnit;
+                          final step = totalHeight / (numLayers - 1);
+
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: List.generate(numLayers, (layerIndex) {
+                              final zVal = layerIndex * step;
+                              final isTop = layerIndex == (numLayers - 1);
+                              return Positioned(
+                                left: obsLeft,
+                                top: obsTop,
+                                width: obsSize,
+                                height: obsSize,
+                                child: Transform(
+                                  transform: Matrix4.translationValues(
+                                    0,
+                                    0,
+                                    zVal,
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: isTop
+                                          ? CyberTheme.neonPink.withValues(
+                                              alpha: 0.25,
+                                            )
+                                          : const Color(
+                                              0xFF6B123C,
+                                            ).withValues(alpha: 0.9),
+                                      border: Border.all(
+                                        color: isTop
+                                            ? CyberTheme.neonPink
+                                            : CyberTheme.neonPink.withValues(
+                                                alpha: 0.3,
+                                              ),
+                                        width: 1.0,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4.0),
+                                    ),
+                                    child: isTop
+                                        ? Center(
+                                            child: Text(
+                                              'H:${obs.height}',
+                                              style:
+                                                  CyberTheme.fontCode(
+                                                    size: 11.0,
+                                                    color: CyberTheme.neonPink,
+                                                  ).copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            }),
+                          );
+                        }),
+
+                        // Floating Energy Cells
+                        ...List.generate(state.remainingEnergyCells.length, (
+                          i,
+                        ) {
+                          final ec = state.remainingEnergyCells[i];
+                          final ecSize = cellSize * 0.45;
+                          final ecOffset = ec.height * hUnit;
+                          final ecLeft =
+                              ec.x * cellWidth + (cellWidth - ecSize) / 2;
+                          final ecTop =
+                              ec.y * cellHeight + (cellHeight - ecSize) / 2;
+
+                          return Positioned(
+                            left: ecLeft,
+                            top: ecTop,
+                            width: ecSize,
+                            height: ecSize,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              clipBehavior: Clip.none,
+                              children: [
+                                // Ground project dot shadow
+                                Center(
+                                  child: Container(
+                                    width: ecSize * 0.4,
+                                    height: ecSize * 0.15,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.black45,
+                                    ),
+                                  ),
+                                ),
+                                // Floating elements (Z-translated together perpendicularly)
+                                Transform(
+                                  alignment: Alignment.center,
+                                  transform: Matrix4.translationValues(
+                                    0,
+                                    0,
+                                    ecOffset,
+                                  ),
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Icon(
+                                            Icons.bolt,
+                                            color: CyberTheme.neonYellow,
+                                            size: ecSize,
+                                          )
+                                          .animate(
+                                            onPlay: (c) =>
+                                                c.repeat(reverse: true),
+                                          )
+                                          .scale(
+                                            duration: 1000.ms,
+                                            begin: const Offset(0.9, 0.9),
+                                            end: const Offset(1.1, 1.1),
+                                          )
+                                          .slideY(
+                                            begin: -0.1,
+                                            end: 0.1,
+                                            duration: 1200.ms,
+                                            curve: Curves.easeInOut,
+                                          ),
+                                      Positioned(
+                                        bottom: -12.0,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 4.0,
+                                            vertical: 1.0,
+                                          ),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                          child: Text(
+                                            'ALT ${ec.height}',
+                                            style: CyberTheme.fontCode(
+                                              size: 7.5,
+                                              color: CyberTheme.neonYellow,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+
+                        // Grouped and Animated Drone Widget Stack (Smooth 2D + 3D Z-translation)
+                        AnimatedPositioned(
+                          key: const ValueKey('drone_animated_stack'),
+                          duration: state.status == GameStatus.running
+                              ? Duration(
+                                  milliseconds: (1600 / state.speedMultiplier)
+                                      .round(),
+                                )
+                              : Duration.zero,
+                          curve: Curves.easeInOutCubic,
+                          left: droneLeft,
+                          top: droneTop,
+                          width: droneSize,
+                          height: droneSize,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(
+                              end: state.droneHeight.toDouble(),
+                            ),
+                            duration: state.status == GameStatus.running
+                                ? Duration(
+                                    milliseconds: (1600 / state.speedMultiplier)
+                                        .round(),
+                                  )
+                                : Duration.zero,
+                            curve: Curves.easeInOutCubic,
+                            builder: (context, animHeight, child) {
+                              final currentZ = animHeight * hUnit;
+                              final shadowOpacity = math.max(
+                                0.0,
+                                math.min(0.45, 0.45 * animHeight),
+                              );
+
+                              return Stack(
+                                alignment: Alignment.center,
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // 1. Drone Shadow on the ground grid (always at bottom)
+                                  if (animHeight > 0.05)
+                                    Center(
+                                      child: Opacity(
+                                        opacity: shadowOpacity,
+                                        child: Container(
+                                          width: droneSize * 0.4,
+                                          height: droneSize * 0.4,
+                                          decoration: const BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: Colors.black,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black,
+                                                blurRadius: 4,
+                                                spreadRadius: 2,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                  // 2. Drone Vertical Connector Line (stacked dots in Z-axis)
+                                  if (animHeight > 0.05)
+                                    ...List.generate(5, (index) {
+                                      final zVal = (index / 4) * currentZ;
+                                      return Transform(
+                                        alignment: Alignment.center,
+                                        transform: Matrix4.translationValues(
+                                          0,
+                                          0,
+                                          zVal,
+                                        ),
+                                        child: Center(
+                                          child: Container(
+                                            width: 2.0,
+                                            height: 2.0,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color:
+                                                  (state.status ==
+                                                              GameStatus.crashed
+                                                          ? CyberTheme.neonPink
+                                                          : (state.status ==
+                                                                    GameStatus
+                                                                        .success
+                                                                ? CyberTheme
+                                                                      .neonGreen
+                                                                : CyberTheme
+                                                                      .neonCyan))
+                                                      .withValues(alpha: 0.6),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }),
+
+                                  // 3. Custom Animated Drone Sprite (Elevated in Z-axis)
+                                  Transform(
+                                    alignment: Alignment.center,
+                                    transform: Matrix4.translationValues(
+                                      0,
+                                      0,
+                                      currentZ,
+                                    ),
+                                    child: Center(
+                                      child: DroneSprite(
+                                        size: droneSize,
+                                        height: state.droneHeight,
+                                        direction: state.droneDirection,
+                                        isFlying:
+                                            state.droneHeight > 0 &&
+                                            state.status == GameStatus.running,
+                                        hasCargo: state.hasCargo,
+                                        status: state.status,
+                                        speedMultiplier: state.speedMultiplier,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+
+                        // Holographic corner bracket frame
+                        Positioned.fill(
+                          child: Transform(
+                            transform: Matrix4.translationValues(0, 0, 10.0),
+                            child: IgnorePointer(
+                              child: CustomPaint(
+                                painter: HolographicFramePainter(
+                                  color:
+                                      (state.status == GameStatus.crashed
+                                              ? CyberTheme.neonPink
+                                              : (state.status ==
+                                                        GameStatus.success
+                                                    ? CyberTheme.neonGreen
+                                                    : CyberTheme.neonCyan))
+                                          .withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         );
@@ -1574,297 +2864,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
                   ),
                 ],
               ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showHintDialog(BuildContext context, Level level) {
-    showCyberDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24.0,
-            vertical: 24.0,
-          ),
-          child: CyberCard(
-            borderColor: CyberTheme.neonYellow,
-            backgroundColor: CyberTheme.cardBg,
-            borderWidth: 1.5,
-            chamferSize: 16.0,
-            showAccents: true,
-            child: Consumer(
-              builder: (context, ref, child) {
-                final unlockedHints = ref.watch(unlockedHintsProvider);
-                final remainingKeys = ref.watch(remainingHintsProvider);
-                final isUnlocked =
-                    unlockedHints.contains(level.id) ||
-                    level.id.startsWith('T') ||
-                    ((level.id.startsWith('N') || level.id.startsWith('H')) &&
-                        (int.tryParse(
-                                  level.id.replaceAll(RegExp(r'[^0-9]'), ''),
-                                ) ??
-                                1) <=
-                            5);
-                final hasHint = level.hint != null && level.hint!.isNotEmpty;
-
-                return Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                        Icons.lightbulb,
-                                        color: CyberTheme.neonYellow,
-                                        size: 22.0,
-                                      )
-                                      .animate(
-                                        onPlay: (c) => c.repeat(reverse: true),
-                                      )
-                                      .scale(
-                                        duration: 800.ms,
-                                        end: const Offset(1.1, 1.1),
-                                      ),
-                                  const SizedBox(width: 8.0),
-                                  Text(
-                                    'TACTICAL BRIEFING',
-                                    style: CyberTheme.fontHeading(
-                                      size: 16.0,
-                                      color: CyberTheme.neonYellow,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8.0),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'KEYS: $remainingKeys',
-                              style: CyberTheme.fontCode(
-                                size: 12.0,
-                                color: CyberTheme.neonYellow,
-                              ).copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16.0),
-                      // Objective Section
-                      Text(
-                        'MISSION OBJECTIVE',
-                        style:
-                            CyberTheme.fontCode(
-                              size: 11.0,
-                              color: CyberTheme.neonPink,
-                            ).copyWith(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                      ),
-                      const SizedBox(height: 6.0),
-                      CyberCard(
-                        borderColor: CyberTheme.neonPink.withValues(
-                          alpha: 0.15,
-                        ),
-                        backgroundColor: Colors.black26,
-                        borderWidth: 1.0,
-                        chamferSize: 8.0,
-                        showAccents: false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(10.0),
-                          child: Text(
-                            level.description.toUpperCase(),
-                            style: CyberTheme.fontBody(
-                              size: 13.0,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16.0),
-                      // Tactical Hint Section
-                      Text(
-                        'TACTICAL TELEMETRY HINT',
-                        style:
-                            CyberTheme.fontCode(
-                              size: 11.0,
-                              color: CyberTheme.neonCyan,
-                            ).copyWith(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                      ),
-                      const SizedBox(height: 6.0),
-                      if (!hasHint)
-                        CyberCard(
-                          borderColor: CyberTheme.borderTranslucent,
-                          backgroundColor: CyberTheme.darkBg,
-                          borderWidth: 1.0,
-                          chamferSize: 8.0,
-                          showAccents: false,
-                          child: Padding(
-                            padding: const EdgeInsets.all(10.0),
-                            child: Text(
-                              "No telemetry recommendations available for this zone. Proceed with manual flight program.",
-                              style: CyberTheme.fontBody(
-                                size: 13.0,
-                                color: CyberTheme.textMain,
-                              ),
-                            ),
-                          ),
-                        )
-                      else if (isUnlocked)
-                        CyberCard(
-                          borderColor: CyberTheme.neonCyan,
-                          backgroundColor: CyberTheme.darkBg,
-                          borderWidth: 1.0,
-                          chamferSize: 8.0,
-                          showAccents: false,
-                          child: Padding(
-                            padding: const EdgeInsets.all(10.0),
-                            child: Text(
-                              level.hint!,
-                              style: CyberTheme.fontBody(
-                                size: 13.0,
-                                color: CyberTheme.textMain,
-                              ),
-                            ),
-                          ),
-                        ).animate().fadeIn(duration: 400.ms)
-                      else
-                        CyberCard(
-                          borderColor: CyberTheme.neonPink.withValues(
-                            alpha: 0.5,
-                          ),
-                          backgroundColor: Colors.black38,
-                          borderWidth: 1.0,
-                          chamferSize: 8.0,
-                          showAccents: false,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 16.0,
-                            ),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.lock,
-                                      color: CyberTheme.neonPink,
-                                      size: 18.0,
-                                    ),
-                                    const SizedBox(width: 8.0),
-                                    Text(
-                                      'ENCRYPTED FLIGHT PATH',
-                                      style: CyberTheme.fontCode(
-                                        size: 12.0,
-                                        color: CyberTheme.neonPink,
-                                      ).copyWith(fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12.0),
-                                InkWell(
-                                  onTap: remainingKeys > 0
-                                      ? () {
-                                          _playSound('audio/click.wav');
-                                          ref
-                                              .read(
-                                                unlockedHintsProvider.notifier,
-                                              )
-                                              .unlockHint(level.id);
-                                        }
-                                      : null,
-                                  child: CyberCard(
-                                    borderColor: remainingKeys > 0
-                                        ? CyberTheme.neonGreen
-                                        : CyberTheme.textMuted,
-                                    backgroundColor: remainingKeys > 0
-                                        ? CyberTheme.neonGreen.withValues(
-                                            alpha: 0.1,
-                                          )
-                                        : Colors.transparent,
-                                    borderWidth: 1.0,
-                                    chamferSize: 6.0,
-                                    showAccents: false,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16.0,
-                                        vertical: 8.0,
-                                      ),
-                                      child: Text(
-                                        remainingKeys > 0
-                                            ? 'DECRYPT HINT (COST: 1 KEY)'
-                                            : 'DECRYPT LOCKED (1 KEY REQUIRED)',
-                                        style: CyberTheme.fontCode(
-                                          size: 12.0,
-                                          color: remainingKeys > 0
-                                              ? CyberTheme.neonGreen
-                                              : CyberTheme.textMuted,
-                                        ).copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 20.0),
-                      // Close button
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: InkWell(
-                          onTap: () {
-                            _playSound('audio/click.wav');
-                            Navigator.pop(context);
-                          },
-                          child: CyberCard(
-                            borderColor: CyberTheme.neonYellow,
-                            backgroundColor: CyberTheme.neonYellow,
-                            borderWidth: 0.0,
-                            chamferSize: 6.0,
-                            showAccents: false,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
-                                vertical: 10.0,
-                              ),
-                              child: Text(
-                                'DISMISS',
-                                style: CyberTheme.fontCode(
-                                  size: 12.0,
-                                  color: Colors.black,
-                                ).copyWith(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
             ),
           ),
         );
@@ -2051,14 +3050,16 @@ class _GameScreenState extends ConsumerState<GameScreen>
             ),
           ],
         ),
-        const SizedBox(height: 8.0),
-        const Divider(color: CyberTheme.borderTranslucent, height: 1.0),
-        const SizedBox(height: 6.0),
-        _ScrollingTelemetryChart(
-          status: state.status,
-          droneHeight: state.droneHeight,
-          battery: state.battery,
-        ),
+        if (isFloating) ...[
+          const SizedBox(height: 8.0),
+          const Divider(color: CyberTheme.borderTranslucent, height: 1.0),
+          const SizedBox(height: 6.0),
+          _ScrollingTelemetryChart(
+            status: state.status,
+            droneHeight: state.droneHeight,
+            battery: state.battery,
+          ),
+        ],
       ],
     );
 
@@ -2512,6 +3513,113 @@ class _GameScreenState extends ConsumerState<GameScreen>
     );
   }
 
+  Widget _buildAdCountdownOverlay() {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
+        child: Container(
+          color: CyberTheme.darkBg.withValues(alpha: 0.85),
+          child: Center(
+            child: CyberCard(
+              borderColor: CyberTheme.neonCyan,
+              backgroundColor: CyberTheme.cardBg,
+              borderWidth: 1.5,
+              chamferSize: 16.0,
+              showAccents: true,
+              child: Padding(
+                padding: const EdgeInsets.all(28.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: CyberTheme.neonCyan.withValues(alpha: 0.1),
+                            border: Border.all(
+                              color: CyberTheme.neonCyan.withValues(alpha: 0.3),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.wifi_tethering_rounded,
+                            color: CyberTheme.neonCyan,
+                            size: 32.0,
+                          ),
+                        )
+                        .animate(
+                          onPlay: (controller) =>
+                              controller.repeat(reverse: true),
+                        )
+                        .scale(
+                          duration: 800.ms,
+                          begin: const Offset(0.9, 0.9),
+                          end: const Offset(1.1, 1.1),
+                        ),
+                    const SizedBox(height: 16.0),
+                    Text(
+                      'ESTABLISHING TELEMETRY LINK',
+                      style: CyberTheme.fontHeading(
+                        size: 16.0,
+                        color: CyberTheme.neonCyan,
+                      ),
+                    ),
+                    const SizedBox(height: 8.0),
+                    Text(
+                      'Synchronizing satellite uplink... please hold.',
+                      textAlign: TextAlign.center,
+                      style: CyberTheme.fontBody(
+                        size: 13.0,
+                        color: CyberTheme.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 24.0),
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: CircularProgressIndicator(
+                            value: _adCountdownSeconds / 3.0,
+                            strokeWidth: 4.0,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              CyberTheme.neonCyan,
+                            ),
+                            backgroundColor: CyberTheme.borderTranslucent,
+                          ),
+                        ),
+                        Text(
+                              '$_adCountdownSeconds',
+                              style: CyberTheme.fontHeading(
+                                size: 28.0,
+                                color: CyberTheme.neonCyan,
+                              ),
+                            )
+                            .animate(key: ValueKey(_adCountdownSeconds))
+                            .scale(duration: 200.ms, curve: Curves.easeOutBack)
+                            .then(delay: 600.ms)
+                            .fadeOut(duration: 200.ms),
+                      ],
+                    ),
+                    const SizedBox(height: 16.0),
+                    Text(
+                      'SECURE CHANNEL INITIATING',
+                      style: CyberTheme.fontCode(
+                        size: 11.0,
+                        color: CyberTheme.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCongratsSplash() {
     return ClipRRect(
       child: BackdropFilter(
@@ -2543,7 +3651,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 ),
                               ),
                             )
-                            .animate(onPlay: (controller) => controller.repeat())
+                            .animate(
+                              onPlay: (controller) => controller.repeat(),
+                            )
                             .scale(duration: 800.ms, curve: Curves.elasticOut)
                             .rotate(duration: 6.seconds, end: 1.0),
 
@@ -2561,7 +3671,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 ),
                               ),
                             )
-                            .animate(onPlay: (controller) => controller.repeat())
+                            .animate(
+                              onPlay: (controller) => controller.repeat(),
+                            )
                             .scale(duration: 600.ms, curve: Curves.elasticOut)
                             .rotate(duration: 4.seconds, end: -1.0),
 
@@ -2569,7 +3681,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                               padding: const EdgeInsets.all(20.0),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: CyberTheme.neonGreen.withValues(alpha: 0.15),
+                                color: CyberTheme.neonGreen.withValues(
+                                  alpha: 0.15,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: CyberTheme.neonGreen.withValues(
@@ -2622,7 +3736,10 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         .animate()
                         .scale(duration: 600.ms, curve: Curves.elasticOut)
                         .then(delay: 300.ms)
-                        .shimmer(duration: 1.2.seconds, color: CyberTheme.neonCyan),
+                        .shimmer(
+                          duration: 1.2.seconds,
+                          color: CyberTheme.neonCyan,
+                        ),
 
                     const SizedBox(height: 12.0),
                     Text(
@@ -2771,14 +3888,18 @@ class _GameScreenState extends ConsumerState<GameScreen>
                           child:
                               Icon(
                                 isLit
-                                    ? (isFourthStar ? Icons.diamond : Icons.star)
+                                    ? (isFourthStar
+                                          ? Icons.diamond
+                                          : Icons.star)
                                     : (isFourthStar
                                           ? Icons.diamond_outlined
                                           : Icons.star_border),
                                 size: isFourthStar ? 30.0 : 28.0,
                                 color: isLit
                                     ? litColor
-                                    : CyberTheme.textMuted.withValues(alpha: 0.2),
+                                    : CyberTheme.textMuted.withValues(
+                                        alpha: 0.2,
+                                      ),
                                 shadows: isLit && isFourthStar
                                     ? [
                                         Shadow(
@@ -2880,7 +4001,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                             InkWell(
                               onTap: () {
                                 _playSound('audio/click.wav');
-                                ref.read(gameStateProvider.notifier).clearProgram();
+                                ref
+                                    .read(gameStateProvider.notifier)
+                                    .clearProgram();
                                 ref
                                     .read(gameStateProvider.notifier)
                                     .resetSimulation();
@@ -2912,7 +4035,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                 _playSound('audio/click.wav');
                                 if (state.level.id == 'T3') {
                                   ref
-                                      .read(seenTutorialMissionsProvider.notifier)
+                                      .read(
+                                        seenTutorialMissionsProvider.notifier,
+                                      )
                                       .markAsSeen();
                                 }
                                 ref
@@ -2959,7 +4084,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
                                   if (state.level.id == 'T3') {
                                     ref
-                                        .read(seenTutorialMissionsProvider.notifier)
+                                        .read(
+                                          seenTutorialMissionsProvider.notifier,
+                                        )
                                         .markAsSeen();
                                     ref
                                         .read(gameModeProvider.notifier)
@@ -2967,7 +4094,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                     ref
                                         .read(currentLevelProvider.notifier)
                                         .setLevel(nextLvl);
-                                    ref.read(gameStateProvider.notifier).clearProgram();
+                                    ref
+                                        .read(gameStateProvider.notifier)
+                                        .clearProgram();
                                     ref
                                         .read(gameStateProvider.notifier)
                                         .resetSimulation();
@@ -2978,7 +4107,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
                                     ref
                                         .read(currentLevelProvider.notifier)
                                         .setLevel(nextLvl);
-                                    ref.read(gameStateProvider.notifier).clearProgram();
+                                    ref
+                                        .read(gameStateProvider.notifier)
+                                        .clearProgram();
                                     ref
                                         .read(gameStateProvider.notifier)
                                         .resetSimulation();
@@ -3145,6 +4276,58 @@ class _GameScreenState extends ConsumerState<GameScreen>
   }
 }
 
+class HolographicFramePainter extends CustomPainter {
+  final Color color;
+  HolographicFramePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke;
+
+    final len = math.min(size.width, size.height) * 0.08;
+
+    // Top Left
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, len)
+        ..lineTo(0, 0)
+        ..lineTo(len, 0),
+      paint,
+    );
+    // Top Right
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width - len, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(size.width, len),
+      paint,
+    );
+    // Bottom Left
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, size.height - len)
+        ..lineTo(0, size.height)
+        ..lineTo(len, size.height),
+      paint,
+    );
+    // Bottom Right
+    canvas.drawPath(
+      Path()
+        ..moveTo(size.width - len, size.height)
+        ..lineTo(size.width, size.height)
+        ..lineTo(size.width, size.height - len),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant HolographicFramePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
 class CargoBoxWidget extends StatefulWidget {
   final double left;
   final double top;
@@ -3199,7 +4382,7 @@ class _CargoBoxWidgetState extends State<CargoBoxWidget>
     super.didUpdateWidget(oldWidget);
     if (widget.hasCargo && !oldWidget.hasCargo) {
       // Delay the shrink/fade until the drone claw reaches the box
-      final delayMs = (700 / widget.speedMultiplier).round();
+      final delayMs = (1600 / widget.speedMultiplier).round();
       Future.delayed(Duration(milliseconds: delayMs), () {
         if (mounted) {
           _controller.forward();
@@ -3233,22 +4416,72 @@ class _CargoBoxWidgetState extends State<CargoBoxWidget>
           height: widget.size,
           child: Opacity(
             opacity: opacity,
-            child: Transform.scale(scale: scale, child: child),
+            child: Transform.scale(
+              scale: scale,
+              child: SizedBox(
+                width: widget.size,
+                height: widget.size,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // 1. Ground pulse circle (z = 0)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        size: Size(widget.size, widget.size),
+                        painter: CargoPulsePainter(
+                          animationValue: widget.animationValue,
+                        ),
+                      ),
+                    ),
+                    // 2. Volumetric cargo layers (static child)
+                    child!,
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       },
-      child: CustomPaint(
-        size: Size(widget.size, widget.size),
-        painter: CargoBoxPainter(animationValue: widget.animationValue),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: List.generate(10, (layerIndex) {
+          final zVal = layerIndex * (widget.size * 0.85 / 9);
+          final isTop = layerIndex == 9;
+          return Positioned.fill(
+            child: Transform(
+              transform: Matrix4.translationValues(0, 0, zVal),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isTop
+                      ? Colors.transparent
+                      : const Color(0xFFB4703C).withValues(alpha: 0.95),
+                  border: isTop
+                      ? null
+                      : Border.all(
+                          color: const Color(0xFF8B4F21).withValues(alpha: 0.4),
+                          width: 1.0,
+                        ),
+                  borderRadius: BorderRadius.circular(3.0),
+                ),
+                child: isTop
+                    ? CustomPaint(
+                        size: Size(widget.size, widget.size),
+                        painter: CargoBoxPainter(),
+                      )
+                    : null,
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
 }
 
-class CargoBoxPainter extends CustomPainter {
+class CargoPulsePainter extends CustomPainter {
   final double animationValue;
 
-  CargoBoxPainter({required this.animationValue});
+  CargoPulsePainter({required this.animationValue});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -3257,71 +4490,91 @@ class CargoBoxPainter extends CustomPainter {
     final center = Offset(cx, cy);
     final double cargoBoxSize = size.width;
 
-    // 1. Pulse highlight ring around cargo
+    // Pulse highlight outline ring around cargo (subtle cyber aesthetic hint) at z = 0
     final cargoPulse =
         1.0 + 0.1 * math.sin((animationValue + 0.5) * 2 * math.pi);
     final cargoPulsePaint = Paint()
       ..color = CyberTheme.neonYellow.withValues(
-        alpha: 0.25 * (2.0 - cargoPulse),
+        alpha: 0.15 * (2.0 - cargoPulse),
       )
-      ..strokeWidth = 1.2
+      ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
-    canvas.drawCircle(center, cargoBoxSize * 1.6 * cargoPulse, cargoPulsePaint);
+    canvas.drawCircle(center, cargoBoxSize * 1.5 * cargoPulse, cargoPulsePaint);
+  }
 
-    // 2. Draw Crate body
+  @override
+  bool shouldRepaint(covariant CargoPulsePainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue;
+  }
+}
+
+class CargoBoxPainter extends CustomPainter {
+  CargoBoxPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final center = Offset(cx, cy);
+    final double cargoBoxSize = size.width;
+
+    // 1. Draw Cardboard Box Top body
     final cargoRect = Rect.fromCenter(
       center: center,
       width: cargoBoxSize,
       height: cargoBoxSize,
     );
+
+    // Warm cardboard color
     final cargoPaint = Paint()
-      ..color = CyberTheme.neonYellow.withValues(alpha: 0.15)
+      ..color = const Color(0xFFE5A96C)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(cargoRect, const Radius.circular(5.0)),
+      RRect.fromRectAndRadius(cargoRect, const Radius.circular(3.0)),
       cargoPaint,
     );
 
+    // Cardboard borders (darker brown)
     final cargoBorder = Paint()
-      ..color = CyberTheme.neonYellow
-      ..strokeWidth = 1.5
+      ..color = const Color(0xFF8B4F21)
+      ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(cargoRect, const Radius.circular(5.0)),
+      RRect.fromRectAndRadius(cargoRect, const Radius.circular(3.0)),
       cargoBorder,
     );
 
-    // 3. Warning stripe patterns inside crate
-    final stripePaint = Paint()
-      ..color = CyberTheme.neonYellow.withValues(alpha: 0.5)
-      ..strokeWidth = 1.5;
-    canvas.drawLine(cargoRect.topLeft, cargoRect.bottomRight, stripePaint);
-    canvas.drawLine(cargoRect.bottomLeft, cargoRect.topRight, stripePaint);
+    // 2. Central white packaging tape line
+    final tapePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill;
 
-    // 4. Text Label "CARGO"
-    final cargoTextPainter = TextPainter(
-      text: const TextSpan(
-        text: 'CARGO',
-        style: TextStyle(
-          color: CyberTheme.neonYellow,
-          fontSize: 8.0,
-          fontFamily: 'ShareTechMono',
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
+    final tapeWidth = size.width * 0.16;
+    final tapeRect = Rect.fromLTWH(
+      cx - tapeWidth / 2,
+      0,
+      tapeWidth,
+      size.height,
     );
-    cargoTextPainter.layout();
-    cargoTextPainter.paint(
-      canvas,
-      Offset(cx - cargoTextPainter.width / 2, cy + cargoBoxSize / 2 + 3.0),
-    );
+    canvas.drawRect(tapeRect, tapePaint);
+
+    // Add tape border lines for extra definition
+    final tapeBorderPaint = Paint()
+      ..color = Colors.white70
+      ..strokeWidth = 0.5
+      ..style = PaintingStyle.stroke;
+    canvas.drawRect(tapeRect, tapeBorderPaint);
+
+    // 3. Draw subtle box flap division lines
+    final linePaint = Paint()
+      ..color = const Color(0xFF8B4F21).withValues(alpha: 0.5)
+      ..strokeWidth = 0.8;
+    // Horizontal division line across the tape
+    canvas.drawLine(Offset(0, cy), Offset(size.width, cy), linePaint);
   }
 
   @override
-  bool shouldRepaint(covariant CargoBoxPainter oldDelegate) {
-    return oldDelegate.animationValue != animationValue;
-  }
+  bool shouldRepaint(covariant CargoBoxPainter oldDelegate) => false;
 }
 
 class _ScrollingTelemetryChart extends StatefulWidget {
@@ -3336,7 +4589,8 @@ class _ScrollingTelemetryChart extends StatefulWidget {
   });
 
   @override
-  State<_ScrollingTelemetryChart> createState() => _ScrollingTelemetryChartState();
+  State<_ScrollingTelemetryChart> createState() =>
+      _ScrollingTelemetryChartState();
 }
 
 class _ScrollingTelemetryChartState extends State<_ScrollingTelemetryChart>
@@ -3363,7 +4617,8 @@ class _ScrollingTelemetryChartState extends State<_ScrollingTelemetryChart>
   @override
   void didUpdateWidget(covariant _ScrollingTelemetryChart oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.droneHeight != oldWidget.droneHeight || widget.battery != oldWidget.battery) {
+    if (widget.droneHeight != oldWidget.droneHeight ||
+        widget.battery != oldWidget.battery) {
       setState(() {
         _altitudeHistory.removeAt(0);
         _altitudeHistory.add(widget.droneHeight.toDouble());
@@ -3442,7 +4697,7 @@ class _TelemetryChartPainter extends CustomPainter {
     if (altitudeHistory.isNotEmpty) {
       final altPath = Path();
       final dx = size.width / (altitudeHistory.length - 1);
-      
+
       // We want to scale altitude (0m to 8m)
       double getAltY(double alt) {
         final norm = (alt / 8.0).clamp(0.0, 1.0);
@@ -3464,7 +4719,7 @@ class _TelemetryChartPainter extends CustomPainter {
     // 3. Draw real-time System Pulse neon wave (Cyan/Green)
     final pulsePath = Path();
     final step = 2.0;
-    
+
     // Adjust frequency and amplitude based on status
     double freq = 0.08;
     double amp = 6.0;
@@ -3534,4 +4789,53 @@ class _TelemetryChartPainter extends CustomPainter {
         oldDelegate.altitudeHistory != altitudeHistory ||
         oldDelegate.batteryHistory != batteryHistory;
   }
+}
+
+class CyberExpandIconPainter extends CustomPainter {
+  final Color color;
+  final double hoverVal;
+
+  CyberExpandIconPainter({required this.color, required this.hoverVal});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.75 + 0.25 * hoverVal)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final w = size.width;
+    final h = size.height;
+
+    // Draw double chevrons pointing down
+    final path = Path();
+
+    // First Chevron (Top)
+    path.moveTo(w * 0.15, h * 0.25);
+    path.lineTo(w * 0.5, h * 0.55);
+    path.lineTo(w * 0.85, h * 0.25);
+
+    // Second Chevron (Bottom)
+    path.moveTo(w * 0.15, h * 0.5);
+    path.lineTo(w * 0.5, h * 0.8);
+    path.lineTo(w * 0.85, h * 0.5);
+
+    // Add a subtle neon glow shadow
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color.withValues(alpha: 0.3 + 0.35 * hoverVal)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.5
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+    );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CyberExpandIconPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.hoverVal != hoverVal;
 }

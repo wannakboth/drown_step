@@ -1,8 +1,10 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'game_state.dart';
 
-class AudioController {
+class AudioController with WidgetsBindingObserver {
   final Ref _ref;
   final AudioPlayer _sfxPlayer = AudioPlayer();
   final AudioPlayer _flyingPlayer = AudioPlayer();
@@ -10,16 +12,22 @@ class AudioController {
 
   bool _isBgmPlaying = false;
   bool _isHumPlaying = false;
+  bool _isFlying = false;
+  bool _isAppPaused = false;
+  String? _currentBgmUrl;
 
   AudioController(this._ref) {
     _init();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   void _init() {
     // Listen to toggles and volumes to apply changes dynamically
     _ref.listen<bool>(soundOnProvider, (prev, next) {
       _applyBgmState();
-      _applyHumState();
+      if (_isFlying) {
+        _updateFlyingSoundState();
+      }
     }, fireImmediately: true);
 
     _ref.listen<bool>(bgmOnProvider, (prev, next) {
@@ -27,66 +35,82 @@ class AudioController {
     }, fireImmediately: true);
 
     _ref.listen<bool>(humOnProvider, (prev, next) {
-      _applyHumState();
+      if (_isFlying) {
+        _updateFlyingSoundState();
+      }
     }, fireImmediately: true);
 
     _ref.listen<double>(bgmVolumeProvider, (prev, next) {
-      _bgmPlayer.setVolume(next);
+      _applyBgmState();
     }, fireImmediately: true);
 
     _ref.listen<double>(humVolumeProvider, (prev, next) {
       if (_isHumPlaying) {
-        _flyingPlayer.setVolume(next);
+        _flyingPlayer.setVolume(next * 2.0);
       }
     }, fireImmediately: true);
 
     _ref.listen<double>(sfxVolumeProvider, (prev, next) {
       _sfxPlayer.setVolume(next);
     }, fireImmediately: true);
+
+    _ref.listen<AppScreen>(appScreenProvider, (prev, next) {
+      _applyBgmState();
+    }, fireImmediately: true);
+  }
+
+  void _updateFlyingSoundState() {
+    final soundOn = _ref.read(soundOnProvider);
+    final humOn = _ref.read(humOnProvider);
+    if (soundOn && humOn) {
+      startFlyingLoop();
+    } else {
+      stopFlyingLoop();
+    }
   }
 
   void _applyBgmState() {
+    if (_isAppPaused) return; // Don't play if app is minimized
+
     final soundOn = _ref.read(soundOnProvider);
     final bgmOn = _ref.read(bgmOnProvider);
     final vol = _ref.read(bgmVolumeProvider);
+    final screen = _ref.read(appScreenProvider);
 
     if (soundOn && bgmOn) {
-      if (!_isBgmPlaying) {
+      final String targetUrl;
+      final double volMultiplier;
+
+      // Select track and volume level depending on the active screen
+      if (screen == AppScreen.game) {
+        targetUrl = 'audio/construct.mp3';
+        volMultiplier = 0.40; // Soft/low background volume for the game screen
+      } else {
+        targetUrl = 'audio/departure.mp3';
+        volMultiplier = 1.0; // Full volume on home/menu screens
+      }
+
+      final targetVolume = vol * volMultiplier;
+
+      if (!_isBgmPlaying || _currentBgmUrl != targetUrl) {
         _isBgmPlaying = true;
+        _currentBgmUrl = targetUrl;
         _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-        _bgmPlayer.setVolume(vol);
-        _bgmPlayer
-            .play(UrlSource('https://archive.org/download/synthwave-artifacts-retro-wave-2020/retro-wave-synthwave-01.mp3'))
-            .catchError((_) {
+        _bgmPlayer.setVolume(targetVolume);
+        _bgmPlayer.play(AssetSource(targetUrl)).catchError((_) {
           _isBgmPlaying = false;
+          _currentBgmUrl = null;
         });
+      } else {
+        // Update volume on current playing track and resume it
+        _bgmPlayer.setVolume(targetVolume);
+        _bgmPlayer.resume();
       }
     } else {
       if (_isBgmPlaying) {
         _isBgmPlaying = false;
+        _currentBgmUrl = null;
         _bgmPlayer.stop().catchError((_) {});
-      }
-    }
-  }
-
-  void _applyHumState() {
-    final soundOn = _ref.read(soundOnProvider);
-    final humOn = _ref.read(humOnProvider);
-    final vol = _ref.read(humVolumeProvider);
-
-    if (soundOn && humOn) {
-      if (!_isHumPlaying) {
-        _isHumPlaying = true;
-        _flyingPlayer.setReleaseMode(ReleaseMode.loop);
-        _flyingPlayer.setVolume(vol);
-        _flyingPlayer.play(AssetSource('audio/flying.wav')).catchError((_) {
-          _isHumPlaying = false;
-        });
-      }
-    } else {
-      if (_isHumPlaying) {
-        _isHumPlaying = false;
-        _flyingPlayer.stop().catchError((_) {});
       }
     }
   }
@@ -122,37 +146,35 @@ class AudioController {
   }
 
   void startFlyingLoop() {
+    if (_isAppPaused) return; // Don't play if app is minimized
+
     final soundOn = _ref.read(soundOnProvider);
-    if (!soundOn) return;
+    final humOn = _ref.read(humOnProvider);
+    if (!soundOn || !humOn) return;
 
     final vol = _ref.read(humVolumeProvider);
     _flyingPlayer.setVolume(vol * 2.0); // throttle up reactor!
-    
+
     if (!_isHumPlaying) {
       _isHumPlaying = true;
       _flyingPlayer.setReleaseMode(ReleaseMode.loop);
       _flyingPlayer.play(AssetSource('audio/flying.wav')).catchError((_) {
         _isHumPlaying = false;
       });
+    } else {
+      _flyingPlayer.resume();
     }
   }
 
   void stopFlyingLoop() {
-    final soundOn = _ref.read(soundOnProvider);
-    final humOn = _ref.read(humOnProvider);
-    final vol = _ref.read(humVolumeProvider);
-
-    if (soundOn && humOn) {
-      _flyingPlayer.setVolume(vol); // throttle down to ambient hum volume
-    } else {
-      if (_isHumPlaying) {
-        _isHumPlaying = false;
-        _flyingPlayer.stop().catchError((_) {});
-      }
+    if (_isHumPlaying) {
+      _isHumPlaying = false;
+      _flyingPlayer.stop().catchError((_) {});
     }
   }
 
   void updateFlyingState(bool shouldFly) {
+    _isFlying = shouldFly;
     if (shouldFly) {
       startFlyingLoop();
     } else {
@@ -160,7 +182,45 @@ class AudioController {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _isAppPaused = true;
+      _bgmPlayer.stop().catchError((_) {});
+      _flyingPlayer.stop().catchError((_) {});
+      _sfxPlayer.stop().catchError((_) {});
+      _isBgmPlaying = false;
+      _isHumPlaying = false;
+      _currentBgmUrl = null;
+    } else if (state == AppLifecycleState.resumed) {
+      _isAppPaused = false;
+      _applyBgmState();
+      if (_isFlying) {
+        _updateFlyingSoundState();
+      }
+    }
+  }
+
+  void pauseForAd() {
+    _isAppPaused = true;
+    _bgmPlayer.pause().catchError((_) {});
+    _flyingPlayer.pause().catchError((_) {});
+    _sfxPlayer.pause().catchError((_) {});
+  }
+
+  void resumeAfterAd() {
+    _isAppPaused = false;
+    _applyBgmState();
+    if (_isFlying) {
+      _updateFlyingSoundState();
+    }
+  }
+
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sfxPlayer.dispose();
     _flyingPlayer.dispose();
     _bgmPlayer.dispose();
@@ -221,9 +281,7 @@ class BgmOnNotifier extends Notifier<bool> {
   }
 }
 
-final bgmOnProvider = NotifierProvider<BgmOnNotifier, bool>(
-  BgmOnNotifier.new,
-);
+final bgmOnProvider = NotifierProvider<BgmOnNotifier, bool>(BgmOnNotifier.new);
 
 class HumOnNotifier extends Notifier<bool> {
   SharedPreferences? _prefs;
@@ -250,9 +308,7 @@ class HumOnNotifier extends Notifier<bool> {
   }
 }
 
-final humOnProvider = NotifierProvider<HumOnNotifier, bool>(
-  HumOnNotifier.new,
-);
+final humOnProvider = NotifierProvider<HumOnNotifier, bool>(HumOnNotifier.new);
 
 class SfxVolumeNotifier extends Notifier<double> {
   SharedPreferences? _prefs;

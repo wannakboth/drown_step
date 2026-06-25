@@ -19,12 +19,7 @@ class CockpitTabPainter extends CustomPainter {
     final path = Path();
     path.moveTo(0, 0);
     path.lineTo(slant - 2, size.height - radius);
-    path.quadraticBezierTo(
-      slant,
-      size.height,
-      slant + radius,
-      size.height,
-    );
+    path.quadraticBezierTo(slant, size.height, slant + radius, size.height);
     path.lineTo(size.width - slant - radius, size.height);
     path.quadraticBezierTo(
       size.width - slant,

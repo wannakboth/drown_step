@@ -470,7 +470,7 @@ class GameStateNotifier extends Notifier<DroneGameState> {
       }
     }
 
-    final int baseDelay = isCargoPickup ? 1800 : 1000;
+    final int baseDelay = isCargoPickup ? 3700 : 2100;
     int delayMs;
     if (state.pc == -1) {
       // Wait at least 400ms for the 350ms layout expand animation to finish
@@ -789,6 +789,7 @@ class CurrentLevelNotifier extends Notifier<Level> {
 
   void setLevel(Level level) {
     state = level;
+    ref.read(showHintGuidanceProvider.notifier).set(false);
     final auth = ref.read(authProvider);
     final mode = ref.read(gameModeProvider);
     final user = auth.currentUser ?? 'guest';
@@ -1141,7 +1142,7 @@ class AuthNotifier extends Notifier<AuthStatus> {
 
     final hintsKey = 'dronestep_${user}_unlocked_hints_${mode.name}';
     final hintsListStr = _prefs!.getStringList(hintsKey) ?? [];
-    final hintsSet = hintsListStr.map((id) {
+    final hintsListMapped = hintsListStr.map((id) {
       String newId = id.toString();
       final parsedId = int.tryParse(newId);
       if (parsedId != null) {
@@ -1152,10 +1153,12 @@ class AuthNotifier extends Notifier<AuthStatus> {
         }
       }
       return newId;
-    }).toSet();
-    ref.read(unlockedHintsProvider.notifier).setUnlocked(hintsSet);
+    }).toList();
+    ref.read(unlockedHintsProvider.notifier).setUnlocked(hintsListMapped);
 
     ref.read(pilotBatteryProvider.notifier).initBattery(_prefs!, user);
+    ref.read(diamondProvider.notifier).initDiamonds(_prefs!, user);
+    ref.read(boughtHintsProvider.notifier).initBoughtHints(_prefs!, user);
   }
 
   Future<bool> register(String username, String password) async {
@@ -1247,7 +1250,7 @@ class AuthNotifier extends Notifier<AuthStatus> {
     final user = state.currentUser ?? 'guest';
     final key = 'dronestep_${user}_unlocked_hints_${mode.name}';
     final current = ref.read(unlockedHintsProvider);
-    final newList = {...current, levelId}.toList();
+    final newList = [...current, levelId];
     await _prefs!.setStringList(key, newList);
   }
 
@@ -1260,30 +1263,31 @@ final authProvider = NotifierProvider<AuthNotifier, AuthStatus>(
   AuthNotifier.new,
 );
 
-class UnlockedHintsNotifier extends Notifier<Set<String>> {
+class UnlockedHintsNotifier extends Notifier<List<String>> {
   @override
-  Set<String> build() => {};
+  List<String> build() => [];
 
-  void setUnlocked(Set<String> ids) {
+  void setUnlocked(List<String> ids) {
     state = ids;
   }
 
   void unlockHint(String levelId) {
-    state = {...state, levelId};
+    state = [...state, levelId];
     ref.read(authProvider.notifier).saveUnlockedHint(levelId);
   }
 }
 
-final unlockedHintsProvider = NotifierProvider<UnlockedHintsNotifier, Set<String>>(
+final unlockedHintsProvider = NotifierProvider<UnlockedHintsNotifier, List<String>>(
   UnlockedHintsNotifier.new,
 );
 
 final remainingHintsProvider = Provider<int>((ref) {
   final starsMap = ref.watch(levelStarsProvider);
   final unlockedHints = ref.watch(unlockedHintsProvider);
+  final boughtHints = ref.watch(boughtHintsProvider);
   final completedCount = starsMap.values.where((stars) => stars > 0).length;
   final totalHintsEarned = completedCount * 3;
-  return math.max(0, totalHintsEarned - unlockedHints.length);
+  return math.max(0, totalHintsEarned + boughtHints - unlockedHints.length);
 });
 
 class SeenTutorialNotifier extends Notifier<bool> {
@@ -1510,4 +1514,382 @@ class PilotBatteryNotifier extends Notifier<int> with WidgetsBindingObserver {
 
 final pilotBatteryProvider = NotifierProvider<PilotBatteryNotifier, int>(
   PilotBatteryNotifier.new,
+);
+
+class DiamondNotifier extends Notifier<int> {
+  SharedPreferences? _prefs;
+  String _user = 'guest';
+
+  @override
+  int build() {
+    return 200; // default start
+  }
+
+  void initDiamonds(SharedPreferences prefs, String user) {
+    _prefs = prefs;
+    _user = user;
+    final key = 'dronestep_${user}_diamonds';
+    state = prefs.getInt(key) ?? 200;
+  }
+
+  Future<void> addDiamonds(int amount) async {
+    state = state + amount;
+    if (_prefs != null) {
+      final key = 'dronestep_${_user}_diamonds';
+      await _prefs!.setInt(key, state);
+    }
+  }
+
+  Future<bool> spendDiamonds(int amount) async {
+    if (state >= amount) {
+      state = state - amount;
+      if (_prefs != null) {
+        final key = 'dronestep_${_user}_diamonds';
+        await _prefs!.setInt(key, state);
+      }
+      return true;
+    }
+    return false;
+  }
+}
+
+final diamondProvider = NotifierProvider<DiamondNotifier, int>(
+  DiamondNotifier.new,
+);
+
+class BoughtHintsNotifier extends Notifier<int> {
+  SharedPreferences? _prefs;
+  String _user = 'guest';
+
+  @override
+  int build() {
+    return 0;
+  }
+
+  void initBoughtHints(SharedPreferences prefs, String user) {
+    _prefs = prefs;
+    _user = user;
+    final mode = ref.read(gameModeProvider);
+    final key = 'dronestep_${user}_bought_hints_${mode.name}';
+    state = prefs.getInt(key) ?? 0;
+  }
+
+  Future<void> addBoughtHints(int count) async {
+    state = state + count;
+    if (_prefs != null) {
+      final mode = ref.read(gameModeProvider);
+      final key = 'dronestep_${_user}_bought_hints_${mode.name}';
+      await _prefs!.setInt(key, state);
+    }
+  }
+}
+
+final boughtHintsProvider = NotifierProvider<BoughtHintsNotifier, int>(
+  BoughtHintsNotifier.new,
+);
+
+class SolverState {
+  final int x;
+  final int y;
+  final int height;
+  final Direction direction;
+  final bool hasCargo;
+  final List<ActionType> path;
+
+  SolverState({
+    required this.x,
+    required this.y,
+    required this.height,
+    required this.direction,
+    required this.hasCargo,
+    required this.path,
+  });
+}
+
+List<ActionType>? solveLevelBFS(Level level, {SolverState? startState}) {
+  final initial = startState ?? SolverState(
+    x: level.startX,
+    y: level.startY,
+    height: 0,
+    direction: level.startDirection,
+    hasCargo: false,
+    path: [],
+  );
+
+  if (initial.hasCargo && initial.x == level.targetX && initial.y == level.targetY && initial.height == 0) {
+    return [];
+  }
+
+  final queue = <SolverState>[initial];
+  final visited = <int>{};
+  visited.add((initial.x & 0xF) | ((initial.y & 0xF) << 4) | ((initial.height & 0x7) << 8) | ((initial.direction.index & 0x3) << 11) | ((initial.hasCargo ? 1 : 0) << 13));
+
+  while (queue.isNotEmpty) {
+    final current = queue.removeAt(0);
+
+    // Goal: delivered cargo to target coordinates and landed (height == 0)
+    if (current.hasCargo && current.x == level.targetX && current.y == level.targetY && current.height == 0) {
+      return current.path;
+    }
+
+    for (final action in ActionType.values) {
+      int nextX = current.x;
+      int nextY = current.y;
+      int nextHeight = current.height;
+      Direction nextDirection = current.direction;
+      bool nextHasCargo = current.hasCargo;
+
+      bool valid = false;
+
+      switch (action) {
+        case ActionType.takeoff:
+          if (current.height == 0) {
+            nextHeight = 1;
+            valid = true;
+          }
+          break;
+        case ActionType.land:
+          if (current.height == 1) {
+            nextHeight = 0;
+            if (current.x == level.boxX && current.y == level.boxY && !current.hasCargo) {
+              nextHasCargo = true;
+              valid = true;
+            } else if (current.x == level.targetX && current.y == level.targetY && current.hasCargo) {
+              valid = true;
+            }
+          }
+          break;
+        case ActionType.forward:
+          if (current.height > 0) {
+            final delta = current.direction.delta;
+            final tx = current.x + delta.dx.toInt();
+            final ty = current.y + delta.dy.toInt();
+            if (tx >= 0 && tx < level.gridWidth && ty >= 0 && ty < level.gridHeight) {
+              bool hitObstacle = false;
+              for (final obs in level.obstacles) {
+                if (obs.x == tx && obs.y == ty) {
+                  if (current.height <= obs.height) {
+                    hitObstacle = true;
+                    break;
+                  }
+                }
+              }
+              if (!hitObstacle) {
+                nextX = tx;
+                nextY = ty;
+                valid = true;
+              }
+            }
+          }
+          break;
+        case ActionType.rotateLeft:
+          if (current.height > 0) {
+            nextDirection = current.direction.rotateLeft();
+            valid = true;
+          }
+          break;
+        case ActionType.rotateRight:
+          if (current.height > 0) {
+            nextDirection = current.direction.rotateRight();
+            valid = true;
+          }
+          break;
+        case ActionType.ascend:
+          if (current.height > 0 && current.height < 4) {
+            nextHeight = current.height + 1;
+            valid = true;
+          }
+          break;
+        case ActionType.descend:
+          if (current.height > 1) {
+            nextHeight = current.height - 1;
+            valid = true;
+          }
+          break;
+      }
+
+      if (valid) {
+        final stateKey = (nextX & 0xF) | ((nextY & 0xF) << 4) | ((nextHeight & 0x7) << 8) | ((nextDirection.index & 0x3) << 11) | ((nextHasCargo ? 1 : 0) << 13);
+        if (!visited.contains(stateKey)) {
+          visited.add(stateKey);
+          queue.add(SolverState(
+            x: nextX,
+            y: nextY,
+            height: nextHeight,
+            direction: nextDirection,
+            hasCargo: nextHasCargo,
+            path: [...current.path, action],
+          ));
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+SolverState simulateProgramToState(Level level, List<ProgramBlock> program) {
+  final compiled = compileProgram(program);
+  
+  int x = level.startX;
+  int y = level.startY;
+  int height = 0;
+  Direction direction = level.startDirection;
+  bool hasCargo = false;
+  int battery = level.initialBattery;
+  
+  int pc = 0;
+  int stepsCount = 0;
+  
+  bool evaluateSimCondition(ConditionType condition) {
+    switch (condition) {
+      case ConditionType.hasCargo:
+        return hasCargo;
+      case ConditionType.notHasCargo:
+        return !hasCargo;
+      case ConditionType.obstacleAhead:
+        final delta = direction.delta;
+        final tx = x + delta.dx.toInt();
+        final ty = y + delta.dy.toInt();
+        if (tx < 0 || tx >= level.gridWidth || ty < 0 || ty >= level.gridHeight) {
+          return true;
+        }
+        return level.obstacles.any((obs) => obs.x == tx && obs.y == ty && height <= obs.height);
+      case ConditionType.obstacleNearby:
+        for (final dir in Direction.values) {
+          final delta = dir.delta;
+          final tx = x + delta.dx.toInt();
+          final ty = y + delta.dy.toInt();
+          if (tx >= 0 && tx < level.gridWidth && ty >= 0 && ty < level.gridHeight) {
+            if (level.obstacles.any((obs) => obs.x == tx && obs.y == ty && height <= obs.height)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      case ConditionType.batteryLow:
+        return battery < 5;
+      case ConditionType.batteryHigh:
+        return battery >= 5;
+      case ConditionType.altitudeHigh:
+        return height > 1;
+      case ConditionType.onTarget:
+        return x == level.targetX && y == level.targetY;
+    }
+  }
+
+  while (pc >= 0 && pc < compiled.length && stepsCount < 1000) {
+    stepsCount++;
+    final inst = compiled[pc];
+    if (inst.type == InstructionType.jump) {
+      pc = inst.jumpTarget;
+      continue;
+    } else if (inst.type == InstructionType.jumpIfNot) {
+      final conditionVal = evaluateSimCondition(inst.condition!);
+      if (!conditionVal) {
+        pc = inst.jumpTarget;
+      } else {
+        pc++;
+      }
+      continue;
+    }
+
+    final action = inst.action!;
+    battery--;
+    
+    switch (action) {
+      case ActionType.takeoff:
+        if (height == 0) {
+          height = 1;
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+      case ActionType.land:
+        if (height == 1) {
+          height = 0;
+          if (x == level.boxX && y == level.boxY && !hasCargo) {
+            hasCargo = true;
+          }
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+      case ActionType.forward:
+        if (height > 0) {
+          final delta = direction.delta;
+          final tx = x + delta.dx.toInt();
+          final ty = y + delta.dy.toInt();
+          if (tx >= 0 && tx < level.gridWidth && ty >= 0 && ty < level.gridHeight) {
+            bool hitObstacle = false;
+            for (final obs in level.obstacles) {
+              if (obs.x == tx && obs.y == ty && height <= obs.height) {
+                hitObstacle = true;
+                break;
+              }
+            }
+            if (!hitObstacle) {
+              x = tx;
+              y = ty;
+            } else {
+              return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+            }
+          } else {
+            return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+          }
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+      case ActionType.rotateLeft:
+        if (height > 0) {
+          direction = direction.rotateLeft();
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+      case ActionType.rotateRight:
+        if (height > 0) {
+          direction = direction.rotateRight();
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+      case ActionType.ascend:
+        if (height > 0 && height < 4) {
+          height++;
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+      case ActionType.descend:
+        if (height > 1) {
+          height--;
+        } else {
+          return SolverState(x: x, y: y, height: height, direction: direction, hasCargo: hasCargo, path: []);
+        }
+        break;
+    }
+    pc++;
+  }
+
+  return SolverState(
+    x: x,
+    y: y,
+    height: height,
+    direction: direction,
+    hasCargo: hasCargo,
+    path: [],
+  );
+}
+
+class ShowHintGuidanceNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool val) => state = val;
+}
+
+final showHintGuidanceProvider = NotifierProvider<ShowHintGuidanceNotifier, bool>(
+  ShowHintGuidanceNotifier.new,
 );

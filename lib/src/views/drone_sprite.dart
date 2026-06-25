@@ -5,6 +5,8 @@ import '../models/level.dart';
 import '../theme/colors.dart';
 import '../providers/game_state.dart';
 
+enum DroneLayer { claws, arms, body, rotors }
+
 class DroneSprite extends StatefulWidget {
   final double size; // Dynamic layout constraints
   final int height;
@@ -29,10 +31,12 @@ class DroneSprite extends StatefulWidget {
   State<DroneSprite> createState() => _DroneSpriteState();
 }
 
-class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin {
+class _DroneSpriteState extends State<DroneSprite>
+    with TickerProviderStateMixin {
   late AnimationController _rotorController;
   late AnimationController _bobbingController;
-  late AnimationController _clawController; // Controls claw extension & cargo grip
+  late AnimationController
+  _clawController; // Controls claw extension & cargo grip
   late AnimationController _entryController; // Controls initial drop-in landing
 
   bool _isCargoVisible = false;
@@ -56,7 +60,7 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
     // Claw extension controller: 0.0 (retracted), 1.0 (fully extended down to grab)
     _clawController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (700 / widget.speedMultiplier).round()),
+      duration: Duration(milliseconds: (1600 / widget.speedMultiplier).round()),
     );
 
     // Entry landing controller: 1.0 (sky high) to 0.0 (grounded)
@@ -81,15 +85,19 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
     super.didUpdateWidget(oldWidget);
 
     if (widget.speedMultiplier != oldWidget.speedMultiplier) {
-      _clawController.duration = Duration(milliseconds: (700 / widget.speedMultiplier).round());
+      _clawController.duration = Duration(
+        milliseconds: (1600 / widget.speedMultiplier).round(),
+      );
     }
 
     // Propeller speed adjustments
     if (widget.isFlying && !_rotorController.isAnimating) {
       _rotorController.repeat();
-    } else if (!widget.isFlying && _rotorController.isAnimating && widget.status != GameStatus.idle) {
-      // Delay stopping rotors until landing animation finishes (600ms)
-      final delayMs = (600 / widget.speedMultiplier).round();
+    } else if (!widget.isFlying &&
+        _rotorController.isAnimating &&
+        widget.status != GameStatus.idle) {
+      // Delay stopping rotors until landing animation finishes (1000ms)
+      final delayMs = (1000 / widget.speedMultiplier).round();
       Future.delayed(Duration(milliseconds: delayMs), () {
         if (mounted && !widget.isFlying) {
           _rotorController.stop();
@@ -108,7 +116,8 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
     }
 
     // Replay entry landing animation if level resets to idle
-    if (widget.status == GameStatus.idle && oldWidget.status != GameStatus.idle) {
+    if (widget.status == GameStatus.idle &&
+        oldWidget.status != GameStatus.idle) {
       _playEntryLanding();
     }
   }
@@ -127,10 +136,14 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
     _isCargoVisible = false;
     _entryController.forward(from: 0.0);
     _rotorController.repeat(); // Spin props while dropping
-    
+
     // Slow down propellers as touchdown occurs
     _entryController.addListener(() {
-      final val = 1.0 - Curves.easeOutCubic.transform(_entryController.value); // 1.0 (air) to 0.0 (ground)
+      final val =
+          1.0 -
+          Curves.easeOutCubic.transform(
+            _entryController.value,
+          ); // 1.0 (air) to 0.0 (ground)
       if (val > 0.6) {
         _rotorController.duration = const Duration(milliseconds: 300);
         if (!_rotorController.isAnimating) _rotorController.repeat();
@@ -171,16 +184,25 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
   Widget build(BuildContext context) {
     final targetHeight = widget.height.toDouble();
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: targetHeight, end: targetHeight),
-      duration: Duration(milliseconds: (600 / widget.speedMultiplier).round()),
+      tween: Tween<double>(end: targetHeight),
+      duration: Duration(milliseconds: (1600 / widget.speedMultiplier).round()),
       curve: Curves.easeInOutCubic,
       builder: (context, animatedHeight, child) {
         // Combine 3D flight scale with the entry drop-in scale
         return AnimatedBuilder(
-          animation: Listenable.merge([_entryController, _bobbingController, _clawController, _rotorController]),
+          animation: Listenable.merge([
+            _entryController,
+            _bobbingController,
+            _clawController,
+            _rotorController,
+          ]),
           builder: (context, child) {
-            final entryVal = 1.0 - Curves.easeOutCubic.transform(_entryController.value); // 1.0 (high) to 0.0 (landed)
-            
+            final entryVal =
+                1.0 -
+                Curves.easeOutCubic.transform(
+                  _entryController.value,
+                ); // 1.0 (high) to 0.0 (landed)
+
             // 3D scale based on height
             final baseScale = 1.0 + 0.15 * animatedHeight;
 
@@ -189,8 +211,9 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
             final scale = baseScale * entryScale;
 
             // Hover bobbing offset (sinus float in mid-air)
-            final double bobOffset = animatedHeight > 0.05 
-                ? (widget.size * 0.05) * math.sin(_bobbingController.value * 2 * math.pi)
+            final double bobOffset = animatedHeight > 0.05
+                ? (widget.size * 0.05) *
+                      math.sin(_bobbingController.value * 2 * math.pi)
                 : 0.0;
 
             // Visual landing drop offset (falls from -100px when entryVal is 1.0 down to 0px when entryVal is 0.0)
@@ -204,7 +227,9 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
                 scale: scale,
                 child: AnimatedRotation(
                   turns: widget.direction.angleInRadians / (2 * math.pi),
-                  duration: Duration(milliseconds: (250 / widget.speedMultiplier).round()),
+                  duration: Duration(
+                    milliseconds: (250 / widget.speedMultiplier).round(),
+                  ),
                   curve: Curves.easeInOut,
                   child: SizedBox(
                     width: widget.size,
@@ -214,73 +239,189 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
                       clipBehavior: Clip.none,
                       children: [
                         // Thruster engine glow or status glow beneath drone
-                        if (isCurrentlyFlying || entryVal > 0.05 || widget.status == GameStatus.crashed || widget.status == GameStatus.success)
-                          Container(
-                            width: widget.size * 0.48,
-                            height: widget.size * 0.48,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: CyberTheme.neonGlow(
-                                widget.status == GameStatus.crashed
-                                    ? Colors.redAccent
-                                    : (widget.status == GameStatus.success
-                                        ? CyberTheme.neonGreen
-                                        : (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)),
-                                radius: widget.size * 0.3 * (isCurrentlyFlying ? 1.0 : (widget.status != GameStatus.idle ? 1.0 : entryVal)),
+                        if (isCurrentlyFlying ||
+                            entryVal > 0.05 ||
+                            widget.status == GameStatus.crashed ||
+                            widget.status == GameStatus.success)
+                          Transform(
+                            transform: Matrix4.translationValues(0, 0, -6.0),
+                            child: Container(
+                              width: widget.size * 0.48,
+                              height: widget.size * 0.48,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: CyberTheme.neonGlow(
+                                  widget.status == GameStatus.crashed
+                                      ? Colors.redAccent
+                                      : (widget.status == GameStatus.success
+                                            ? CyberTheme.neonGreen
+                                            : (widget.hasCargo
+                                                  ? CyberTheme.neonYellow
+                                                  : CyberTheme.neonCyan)),
+                                  radius:
+                                      widget.size *
+                                      0.3 *
+                                      (isCurrentlyFlying
+                                          ? 1.0
+                                          : (widget.status != GameStatus.idle
+                                                ? 1.0
+                                                : entryVal)),
+                                ),
                               ),
                             ),
                           ),
 
-                        // Custom Painted Drone
-                        CustomPaint(
-                          size: Size(widget.size, widget.size),
-                          painter: _CustomDronePainter(
-                            rotorAngle: _rotorController.value * 2 * math.pi,
-                            clawExtension: _clawController.value,
-                            isCargoVisible: _isCargoVisible,
-                            hasCargo: widget.hasCargo,
-                            isFlying: isCurrentlyFlying,
-                            status: widget.status,
+                        // 1. Landing Gear Skids / Claws layer (z = -4.0)
+                        Transform(
+                          transform: Matrix4.translationValues(0, 0, -4.0),
+                          child: CustomPaint(
+                            size: Size(widget.size, widget.size),
+                            painter: _CustomDronePainter(
+                              layer: DroneLayer.claws,
+                              isBodyTop: false,
+                              isArmTop: false,
+                              bodyLayerIndex: 0,
+                              rotorAngle: _rotorController.value * 2 * math.pi,
+                              clawExtension: _clawController.value,
+                              isCargoVisible: _isCargoVisible,
+                              hasCargo: widget.hasCargo,
+                              isFlying: isCurrentlyFlying,
+                              status: widget.status,
+                            ),
                           ),
                         ),
 
-                        // Counter-rotating telemetry altitude badge
-                        Positioned(
-                          bottom: -(widget.size * 0.1),
-                          child: AnimatedRotation(
-                            turns: -widget.direction.angleInRadians / (2 * math.pi),
-                            duration: const Duration(milliseconds: 300),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: widget.size * 0.0875,
-                                vertical: widget.size * 0.025,
+                        // Volumetric 3D Carried Cargo Crate (True Z-stacking centered inside the claws)
+                        if (_isCargoVisible)
+                          ...List.generate(6, (index) {
+                            final double cargoCrateSize = widget.size * 0.22;
+                            final double zVal = -6.0 + index * 1.0;
+                            final isTop = index == 5;
+                            final double clawYOffset =
+                                (widget.size * 0.06) +
+                                (_clawController.value * widget.size * 0.16);
+
+                            return Transform(
+                              transform: Matrix4.translationValues(
+                                0.0,
+                                clawYOffset,
+                                zVal,
                               ),
-                              decoration: BoxDecoration(
-                                color: CyberTheme.cardBg.withValues(alpha: 0.95),
-                                border: Border.all(
-                                  color: widget.status == GameStatus.crashed
-                                      ? Colors.redAccent
-                                      : (widget.status == GameStatus.success
-                                          ? CyberTheme.neonGreen
-                                          : (isCurrentlyFlying
-                                              ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
-                                              : CyberTheme.borderTranslucent)),
-                                  width: 1.0,
+                              child: Center(
+                                child: Container(
+                                  width: cargoCrateSize,
+                                  height: cargoCrateSize,
+                                  decoration: BoxDecoration(
+                                    color: isTop
+                                        ? Colors.transparent
+                                        : const Color(
+                                            0xFFB4703C,
+                                          ).withValues(alpha: 0.95),
+                                    border: isTop
+                                        ? null
+                                        : Border.all(
+                                            color: const Color(
+                                              0xFF8B4F21,
+                                            ).withValues(alpha: 0.4),
+                                            width: 1.0,
+                                          ),
+                                    borderRadius: BorderRadius.circular(2.0),
+                                  ),
+                                  child: isTop
+                                      ? CustomPaint(
+                                          size: Size(
+                                            cargoCrateSize,
+                                            cargoCrateSize,
+                                          ),
+                                          painter: CarriedCargoTopPainter(),
+                                        )
+                                      : null,
                                 ),
                               ),
-                              child: Text(
-                                'ALT ${widget.height}',
-                                style: CyberTheme.fontCode(
-                                  size: math.max(6.0, widget.size * 0.1),
-                                  color: widget.status == GameStatus.crashed
-                                      ? Colors.redAccent
-                                      : (widget.status == GameStatus.success
-                                          ? CyberTheme.neonGreen
-                                          : (isCurrentlyFlying
-                                              ? (widget.hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan)
-                                              : CyberTheme.textMuted)),
-                                ).copyWith(fontWeight: FontWeight.bold),
+                            );
+                          }),
+
+                        // 2. Arms bottom shadow layer (z = 0.0)
+                        Transform(
+                          transform: Matrix4.translationValues(0, 0, 0.0),
+                          child: CustomPaint(
+                            size: Size(widget.size, widget.size),
+                            painter: _CustomDronePainter(
+                              layer: DroneLayer.arms,
+                              isBodyTop: false,
+                              isArmTop: false,
+                              bodyLayerIndex: 0,
+                              rotorAngle: _rotorController.value * 2 * math.pi,
+                              clawExtension: _clawController.value,
+                              isCargoVisible: _isCargoVisible,
+                              hasCargo: widget.hasCargo,
+                              isFlying: isCurrentlyFlying,
+                              status: widget.status,
+                            ),
+                          ),
+                        ),
+
+                        // 3. Arms top white layer (z = 1.5)
+                        Transform(
+                          transform: Matrix4.translationValues(0, 0, 1.5),
+                          child: CustomPaint(
+                            size: Size(widget.size, widget.size),
+                            painter: _CustomDronePainter(
+                              layer: DroneLayer.arms,
+                              isBodyTop: false,
+                              isArmTop: true,
+                              bodyLayerIndex: 0,
+                              rotorAngle: _rotorController.value * 2 * math.pi,
+                              clawExtension: _clawController.value,
+                              isCargoVisible: _isCargoVisible,
+                              hasCargo: widget.hasCargo,
+                              isFlying: isCurrentlyFlying,
+                              status: widget.status,
+                            ),
+                          ),
+                        ),
+
+                        // 4. Volumetric Sculpted Body pod (stacked 5 times from z = 2.0 to z = 6.0)
+                        ...List.generate(5, (index) {
+                          final zVal = 2.0 + index * 1.0;
+                          final isTop = index == 4;
+                          return Transform(
+                            transform: Matrix4.translationValues(0, 0, zVal),
+                            child: CustomPaint(
+                              size: Size(widget.size, widget.size),
+                              painter: _CustomDronePainter(
+                                layer: DroneLayer.body,
+                                isBodyTop: isTop,
+                                isArmTop: false,
+                                bodyLayerIndex: index,
+                                rotorAngle:
+                                    _rotorController.value * 2 * math.pi,
+                                clawExtension: _clawController.value,
+                                isCargoVisible: _isCargoVisible,
+                                hasCargo: widget.hasCargo,
+                                isFlying: isCurrentlyFlying,
+                                status: widget.status,
                               ),
+                            ),
+                          );
+                        }),
+
+                        // 5. Rotors layer (z = 8.0)
+                        Transform(
+                          transform: Matrix4.translationValues(0, 0, 8.0),
+                          child: CustomPaint(
+                            size: Size(widget.size, widget.size),
+                            painter: _CustomDronePainter(
+                              layer: DroneLayer.rotors,
+                              isBodyTop: false,
+                              isArmTop: false,
+                              bodyLayerIndex: 0,
+                              rotorAngle: _rotorController.value * 2 * math.pi,
+                              clawExtension: _clawController.value,
+                              isCargoVisible: _isCargoVisible,
+                              hasCargo: widget.hasCargo,
+                              isFlying: isCurrentlyFlying,
+                              status: widget.status,
                             ),
                           ),
                         ),
@@ -298,6 +439,10 @@ class _DroneSpriteState extends State<DroneSprite> with TickerProviderStateMixin
 }
 
 class _CustomDronePainter extends CustomPainter {
+  final DroneLayer layer;
+  final bool isBodyTop;
+  final bool isArmTop;
+  final int bodyLayerIndex;
   final double rotorAngle;
   final double clawExtension; // 0.0 to 1.0
   final bool isCargoVisible;
@@ -306,6 +451,10 @@ class _CustomDronePainter extends CustomPainter {
   final GameStatus status;
 
   _CustomDronePainter({
+    required this.layer,
+    required this.isBodyTop,
+    required this.isArmTop,
+    required this.bodyLayerIndex,
     required this.rotorAngle,
     required this.clawExtension,
     required this.isCargoVisible,
@@ -324,21 +473,10 @@ class _CustomDronePainter extends CustomPainter {
     final primaryColor = status == GameStatus.crashed
         ? Colors.redAccent
         : (status == GameStatus.success
-            ? CyberTheme.neonGreen
-            : (hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan));
-
-    // 1. Draw carbon-fiber quadcopter arms
-    final armPaint = Paint()
-      ..color = const Color(0xFF1E293B)
-      ..strokeWidth = size.width * 0.056
-      ..strokeCap = StrokeCap.round;
+              ? CyberTheme.neonGreen
+              : (hasCargo ? CyberTheme.neonYellow : CyberTheme.neonCyan));
 
     final armLen = size.width * 0.32;
-    canvas.drawLine(Offset(cx - armLen, cy - armLen), Offset(cx + armLen, cy + armLen), armPaint);
-    canvas.drawLine(Offset(cx - armLen, cy + armLen), Offset(cx + armLen, cy - armLen), armPaint);
-
-    // 2. Draw metallic rotor rings at corners
-    final rotorRadius = size.width * 0.12;
     final rotorOffsets = [
       Offset(cx - armLen, cy - armLen), // Top-Left
       Offset(cx + armLen, cy - armLen), // Top-Right
@@ -346,114 +484,254 @@ class _CustomDronePainter extends CustomPainter {
       Offset(cx + armLen, cy + armLen), // Bottom-Right
     ];
 
-    final rimPaint = Paint()
-      ..color = const Color(0xFF475569)
-      ..strokeWidth = size.width * 0.022
-      ..style = PaintingStyle.stroke;
+    if (layer == DroneLayer.arms) {
+      if (!isArmTop) {
+        // Draw carbon-fiber/dark under-arms for 3D depth shadow
+        final armPaint = Paint()
+          ..color = const Color(0xFF0F172A)
+          ..strokeWidth = size.width * 0.075
+          ..strokeCap = StrokeCap.round;
 
-    final bladePaint = Paint()
-      ..color = primaryColor.withValues(alpha: 0.85)
-      ..strokeWidth = size.width * 0.022
-      ..strokeCap = StrokeCap.round;
+        canvas.drawLine(
+          Offset(cx - armLen, cy - armLen),
+          Offset(cx + armLen, cy + armLen),
+          armPaint,
+        );
+        canvas.drawLine(
+          Offset(cx - armLen, cy + armLen),
+          Offset(cx + armLen, cy - armLen),
+          armPaint,
+        );
 
-    for (final pos in rotorOffsets) {
-      canvas.drawCircle(pos, rotorRadius, rimPaint);
+        // Draw motor pod base caps
+        final motorRadius = size.width * 0.07;
+        final motorPaint = Paint()
+          ..color = const Color(0xFF1E293B)
+          ..style = PaintingStyle.fill;
+        for (final pos in rotorOffsets) {
+          canvas.drawCircle(pos, motorRadius, motorPaint);
+        }
+      } else {
+        // Draw white top-arms
+        final armPaint = Paint()
+          ..color = const Color(0xFFE2E8F0)
+          ..strokeWidth = size.width * 0.055
+          ..strokeCap = StrokeCap.round;
 
-      // Draw spinning propeller blades
+        canvas.drawLine(
+          Offset(cx - armLen, cy - armLen),
+          Offset(cx + armLen, cy + armLen),
+          armPaint,
+        );
+        canvas.drawLine(
+          Offset(cx - armLen, cy + armLen),
+          Offset(cx + armLen, cy - armLen),
+          armPaint,
+        );
+
+        // Draw motor pod casings & metallic rim ring
+        final motorRadius = size.width * 0.06;
+        final motorPaint = Paint()
+          ..color = const Color(0xFF94A3B8)
+          ..style = PaintingStyle.fill;
+
+        final rimPaint = Paint()
+          ..color = const Color(0xFF475569)
+          ..strokeWidth = size.width * 0.018
+          ..style = PaintingStyle.stroke;
+
+        for (final pos in rotorOffsets) {
+          canvas.drawCircle(pos, motorRadius, motorPaint);
+          canvas.drawCircle(pos, motorRadius, rimPaint);
+        }
+      }
+    }
+
+    if (layer == DroneLayer.rotors) {
+      final rotorRadius = size.width * 0.12;
+
+      // Draw propeller blades
+      final bladePaint = Paint()
+        ..color = status == GameStatus.crashed
+            ? Colors.redAccent.withValues(alpha: 0.8)
+            : const Color(0xFF1E293B).withValues(alpha: 0.9)
+        ..strokeWidth = size.width * 0.025
+        ..strokeCap = StrokeCap.round;
+
+      for (final pos in rotorOffsets) {
+        // Draw circular motion blur disk if flying
+        if (isFlying) {
+          canvas.drawCircle(
+            pos,
+            rotorRadius,
+            Paint()
+              ..color = primaryColor.withValues(alpha: 0.12)
+              ..style = PaintingStyle.fill,
+          );
+        }
+
+        // Spinner center cap
+        canvas.drawCircle(
+          pos,
+          size.width * 0.03,
+          Paint()..color = const Color(0xFF0F172A),
+        );
+
+        // Opposing blades spinning
+        canvas.drawLine(
+          Offset(
+            pos.dx + rotorRadius * 0.95 * math.cos(rotorAngle),
+            pos.dy + rotorRadius * 0.95 * math.sin(rotorAngle),
+          ),
+          Offset(
+            pos.dx - rotorRadius * 0.95 * math.cos(rotorAngle),
+            pos.dy - rotorRadius * 0.95 * math.sin(rotorAngle),
+          ),
+          bladePaint,
+        );
+      }
+    }
+
+    if (layer == DroneLayer.claws) {
+      // Draw landing skids and struts
+      final double clawY =
+          cy + (size.height * 0.06) + (clawExtension * size.height * 0.16);
+      final double clawSpread =
+          (size.width * 0.13) + (clawExtension * size.width * 0.08);
+
+      final strutPaint = Paint()
+        ..color = const Color(0xFF475569)
+        ..strokeWidth = size.width * 0.025
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+
+      // Left Skid Struts
       canvas.drawLine(
-        Offset(
-          pos.dx + rotorRadius * 0.9 * math.cos(rotorAngle),
-          pos.dy + rotorRadius * 0.9 * math.sin(rotorAngle),
-        ),
-        Offset(
-          pos.dx - rotorRadius * 0.9 * math.cos(rotorAngle),
-          pos.dy - rotorRadius * 0.9 * math.sin(rotorAngle),
-        ),
-        bladePaint,
+        Offset(cx - size.width * 0.1, cy),
+        Offset(cx - clawSpread, clawY),
+        strutPaint,
+      );
+      canvas.drawLine(
+        Offset(cx - size.width * 0.1, cy + size.height * 0.06),
+        Offset(cx - clawSpread, clawY),
+        strutPaint,
+      );
+
+      // Right Skid Struts
+      canvas.drawLine(
+        Offset(cx + size.width * 0.1, cy),
+        Offset(cx + clawSpread, clawY),
+        strutPaint,
+      );
+      canvas.drawLine(
+        Offset(cx + size.width * 0.1, cy + size.height * 0.06),
+        Offset(cx + clawSpread, clawY),
+        strutPaint,
+      );
+
+      // Horizontal skids (foot bars)
+      final skidPaint = Paint()
+        ..color = const Color(0xFF1E293B)
+        ..strokeWidth = size.width * 0.035
+        ..strokeCap = StrokeCap.round;
+
+      // Left skid bar
+      canvas.drawLine(
+        Offset(cx - clawSpread - size.width * 0.06, clawY),
+        Offset(cx - clawSpread + size.width * 0.08, clawY),
+        skidPaint,
+      );
+
+      // Right skid bar
+      canvas.drawLine(
+        Offset(cx + clawSpread - size.width * 0.08, clawY),
+        Offset(cx + clawSpread + size.width * 0.06, clawY),
+        skidPaint,
       );
     }
 
-    // 3. Draw Grabber Claws & Cargo Crate (Drawn behind body fuselage)
-    // Claws extend vertically downwards under the drone body
-    final double clawY = cy + (size.height * 0.075) + (clawExtension * size.height * 0.2);
-    final double clawSpread = (size.width * 0.09) + (clawExtension * size.width * 0.09);
+    if (layer == DroneLayer.body) {
+      if (bodyLayerIndex == 0) {
+        // Bottom-most chassis plate: dark carbon base
+        final bodyPaint = Paint()
+          ..color = const Color(0xFF334155)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, size.width * 0.11, bodyPaint);
 
-    final clawPaint = Paint()
-      ..color = const Color(0xFF64748B)
-      ..strokeWidth = size.width * 0.031
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
+        // Draw camera gimbal pod
+        final gimbalPaint = Paint()
+          ..color = const Color(0xFF1E293B)
+          ..style = PaintingStyle.fill;
+        final gimbalOffset = Offset(cx, cy + size.height * 0.04);
+        canvas.drawCircle(gimbalOffset, size.width * 0.05, gimbalPaint);
 
-    // Left Claw claw path
-    final leftClaw = Path()
-      ..moveTo(cx - size.width * 0.1, cy + size.height * 0.05)
-      ..lineTo(cx - clawSpread, clawY)
-      ..lineTo(cx - clawSpread + size.width * 0.05, clawY + size.height * 0.05);
-    canvas.drawPath(leftClaw, clawPaint);
+        // Glowing camera lens facing forward
+        final lensPaint = Paint()
+          ..color = primaryColor
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(
+          gimbalOffset - Offset(0, size.height * 0.015),
+          size.width * 0.02,
+          lensPaint,
+        );
+      } else if (bodyLayerIndex == 1) {
+        // Lower pod chassis: light gray
+        final bodyPaint = Paint()
+          ..color = const Color(0xFFCBD5E1)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, size.width * 0.14, bodyPaint);
+      } else if (bodyLayerIndex == 2) {
+        // Main pod chassis: soft off-white
+        final bodyPaint = Paint()
+          ..color = const Color(0xFFF1F5F9)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, size.width * 0.165, bodyPaint);
+      } else if (bodyLayerIndex == 3) {
+        // Upper pod chassis: pure white
+        final bodyPaint = Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(center, size.width * 0.145, bodyPaint);
+      } else if (bodyLayerIndex == 4) {
+        // Top dome cap: white shell with border & status LED
+        final bodyPaint = Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.fill;
 
-    // Right Claw path
-    final rightClaw = Path()
-      ..moveTo(cx + size.width * 0.1, cy + size.height * 0.05)
-      ..lineTo(cx + clawSpread, clawY)
-      ..lineTo(cx + clawSpread - size.width * 0.05, clawY + size.height * 0.05);
-    canvas.drawPath(rightClaw, clawPaint);
+        final bodyBorder = Paint()
+          ..color = primaryColor
+          ..strokeWidth = size.width * 0.02
+          ..style = PaintingStyle.stroke;
 
-    // Render Carried Cargo Box Crate if visible
-    if (isCargoVisible) {
-      final double crateSize = size.width * 0.18;
-      final crateRect = Rect.fromLTWH(
-        cx - crateSize / 2,
-        clawY,
-        crateSize,
-        crateSize,
-      );
-      
-      // Glowing orange cargo crate body
-      final cratePaint = Paint()
-        ..color = CyberTheme.neonYellow
-        ..style = PaintingStyle.fill;
-      canvas.drawRRect(RRect.fromRectAndRadius(crateRect, const Radius.circular(3.0)), cratePaint);
+        canvas.drawCircle(center, size.width * 0.11, bodyPaint);
+        canvas.drawCircle(center, size.width * 0.11, bodyBorder);
 
-      // Cargo diagonal stripe markings
-      final stripePaint = Paint()
-        ..color = CyberTheme.darkBg.withValues(alpha: 0.6)
-        ..strokeWidth = 1.5;
-      canvas.drawLine(crateRect.topLeft, crateRect.bottomRight, stripePaint);
-      canvas.drawLine(crateRect.bottomLeft, crateRect.topRight, stripePaint);
+        // LED Status Indicator Light (Points North/Up)
+        final ledColor = status == GameStatus.crashed
+            ? Colors.redAccent
+            : (status == GameStatus.success
+                  ? CyberTheme.neonGreen
+                  : (isFlying ? CyberTheme.neonGreen : primaryColor));
+
+        final ledPaint = Paint()
+          ..color = ledColor
+          ..style = PaintingStyle.fill;
+
+        final ledOffset = Offset(
+          cx,
+          cy - size.width * 0.11 + size.height * 0.04,
+        );
+        final ledRadius = size.width * 0.035;
+        canvas.drawCircle(ledOffset, ledRadius, ledPaint);
+        canvas.drawCircle(
+          ledOffset,
+          ledRadius * 2,
+          Paint()
+            ..color = ledColor.withValues(alpha: 0.3)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
+        );
+      }
     }
-
-    // 4. Draw Core Fuselage / Body Pod
-    final bodyPaint = Paint()
-      ..color = CyberTheme.cardBg
-      ..style = PaintingStyle.fill;
-
-    final bodyBorder = Paint()
-      ..color = primaryColor
-      ..strokeWidth = size.width * 0.025
-      ..style = PaintingStyle.stroke;
-
-    final bodyRadius = size.width * 0.16;
-    canvas.drawCircle(center, bodyRadius, bodyPaint);
-    canvas.drawCircle(center, bodyRadius, bodyBorder);
-
-    // LED Status Indicator Light (Points North/Up)
-    final ledColor = status == GameStatus.crashed
-        ? Colors.redAccent
-        : (status == GameStatus.success
-            ? CyberTheme.neonGreen
-            : (isFlying ? CyberTheme.neonGreen : primaryColor));
-
-    final ledPaint = Paint()
-      ..color = ledColor
-      ..style = PaintingStyle.fill;
-
-    // LED forward heading indicator
-    final ledOffset = Offset(cx, cy - bodyRadius + size.height * 0.05);
-    final ledRadius = size.width * 0.038;
-    canvas.drawCircle(ledOffset, ledRadius, ledPaint);
-    canvas.drawCircle(ledOffset, ledRadius * 2, Paint()
-      ..color = ledColor.withValues(alpha: 0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0));
   }
 
   @override
@@ -463,6 +741,55 @@ class _CustomDronePainter extends CustomPainter {
         oldDelegate.isCargoVisible != isCargoVisible ||
         oldDelegate.hasCargo != hasCargo ||
         oldDelegate.isFlying != isFlying ||
-        oldDelegate.status != status;
+        oldDelegate.status != status ||
+        oldDelegate.layer != layer ||
+        oldDelegate.isBodyTop != isBodyTop ||
+        oldDelegate.isArmTop != isArmTop ||
+        oldDelegate.bodyLayerIndex != bodyLayerIndex;
   }
+}
+
+class CarriedCargoTopPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    // Warm cardboard color
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(2.0)),
+      Paint()
+        ..color = const Color(0xFFE5A96C)
+        ..style = PaintingStyle.fill,
+    );
+
+    // Cardboard borders (darker brown)
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(2.0)),
+      Paint()
+        ..color = const Color(0xFF8B4F21)
+        ..strokeWidth = 0.8
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Central white packaging tape line
+    final tapeWidth = size.width * 0.16;
+    canvas.drawRect(
+      Rect.fromLTWH(cx - tapeWidth / 2, 0, tapeWidth, size.height),
+      Paint()..color = Colors.white.withValues(alpha: 0.9),
+    );
+
+    // Division line
+    canvas.drawLine(
+      Offset(0, cy),
+      Offset(size.width, cy),
+      Paint()
+        ..color = const Color(0xFF8B4F21).withValues(alpha: 0.5)
+        ..strokeWidth = 0.6,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

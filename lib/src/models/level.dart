@@ -46,11 +46,7 @@ class Obstacle {
   const Obstacle({required this.x, required this.y, required this.height});
 
   Map<String, dynamic> toJson() {
-    return {
-      'x': x,
-      'y': y,
-      'height': height,
-    };
+    return {'x': x, 'y': y, 'height': height};
   }
 
   factory Obstacle.fromJson(Map<String, dynamic> json) {
@@ -76,12 +72,7 @@ class EnergyCell {
   });
 
   Map<String, dynamic> toJson() {
-    return {
-      'x': x,
-      'y': y,
-      'height': height,
-      'charge': charge,
-    };
+    return {'x': x, 'y': y, 'height': height, 'charge': charge};
   }
 
   factory EnergyCell.fromJson(Map<String, dynamic> json) {
@@ -94,12 +85,7 @@ class EnergyCell {
   }
 }
 
-enum GameMode {
-  daily,
-  normal,
-  hard,
-  sandbox,
-}
+enum GameMode { daily, normal, hard, sandbox }
 
 /// Identifies which UI element a tutorial step should highlight/point at.
 enum TutorialTarget {
@@ -215,11 +201,13 @@ class Level {
       targetX: json['targetX'] as int,
       targetY: json['targetY'] as int,
       initialBattery: json['initialBattery'] as int,
-      obstacles: (json['obstacles'] as List<dynamic>?)
+      obstacles:
+          (json['obstacles'] as List<dynamic>?)
               ?.map((o) => Obstacle.fromJson(o as Map<String, dynamic>))
               .toList() ??
           [],
-      energyCells: (json['energyCells'] as List<dynamic>?)
+      energyCells:
+          (json['energyCells'] as List<dynamic>?)
               ?.map((e) => EnergyCell.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -245,8 +233,10 @@ class Level {
     Level(
       id: 'T1',
       title: 'TUTORIAL 1: COCKPIT HUD',
-      description: 'ACQUIRE CARGO AT (1, 2) AND LAND AT (2, 2) TO COMPLETE YOUR BASIC FLIGHT READOUT CALIBRATION.',
-      hint: 'FOLLOW THE CO-PILOT INSTRUCTIONS TO UNDERSTAND EACH PORTION OF THE DASHBOARD CARD BY CARD.',
+      description:
+          'ACQUIRE CARGO AT (1, 2) AND LAND AT (2, 2) TO COMPLETE YOUR BASIC FLIGHT READOUT CALIBRATION.',
+      hint:
+          'FOLLOW THE CO-PILOT INSTRUCTIONS TO UNDERSTAND EACH PORTION OF THE DASHBOARD CARD BY CARD.',
       gridWidth: 3,
       gridHeight: 3,
       startX: 0,
@@ -261,25 +251,65 @@ class Level {
       energyCells: [],
       star3Target: 0,
       tutorialSteps: [
-        TutorialStep("Welcome to DroneStep! Let's inspect the interface. This is the FLIGHT TELEMETRY HUD showing battery, current altitude, coordinates, and program block limits.", target: TutorialTarget.telemetry),
-        TutorialStep("Next, view the command center card on the right: the PROGRAM CONSOLE. This shows your program commands queued for flight execution.", target: TutorialTarget.console),
-        TutorialStep("This is the FLIGHT ARENA grid. The drone must navigate here to acquire cargo boxes and deliver them to target pads.", target: TutorialTarget.gridArena),
-        TutorialStep("Tap the [ PROGRAM CONSOLE ] button to expand the programming panel and reveal the instruction palette.", target: TutorialTarget.console),
-        TutorialStep("Below the grid is the INSTRUCTION PALETTE. Tap on the [TAKEOFF] block to queue it first.", target: TutorialTarget.takeoff),
-        TutorialStep("Great! The takeoff block is now added to the ACTIVE FLIGHT SEQUENCE workspace. Here, you can reorder or nest loops and logic.", target: TutorialTarget.workspace),
-        TutorialStep("This is the SIMULATION SPEED toggle. Tap it to speed up or slow down flight execution.", target: TutorialTarget.speed),
-        TutorialStep("If you get stuck on a mission, tap the SECTOR MISSION BRIEFING (Hint) button to decrypt advice.", target: TutorialTarget.hint),
-        TutorialStep("Read the objective and hints, then tap [DISMISS] to close the briefing.", target: TutorialTarget.dismissHint),
-        TutorialStep("If your path goes wrong, tap the RETRY / RESET button to clear the sequence and recall the drone.", target: TutorialTarget.reset),
-        TutorialStep("Tap [CONFIRM] to reset your program sequence and start fresh.", target: TutorialTarget.confirmReset),
-        TutorialStep("Now, rebuild the cargo flight plan: tap [TAKEOFF], [MOVE FWD], and [LAND] to acquire the cargo box, then another [TAKEOFF], [MOVE FWD], and [LAND] to deliver it.", target: TutorialTarget.workspace),
-        TutorialStep("Flight plan ready! Tap [RUN PROGRAM] to execute the flight sequence and watch the automatic delivery.", target: TutorialTarget.runProgram),
+        TutorialStep(
+          "Welcome to DroneStep! Let's inspect the interface. This is the FLIGHT TELEMETRY HUD showing battery, current altitude, coordinates, and program block limits.",
+          target: TutorialTarget.telemetry,
+        ),
+        TutorialStep(
+          "Next, view the command center card on the right: the PROGRAM CONSOLE. This shows your program commands queued for flight execution.",
+          target: TutorialTarget.console,
+        ),
+        TutorialStep(
+          "This is the FLIGHT ARENA grid. The drone must navigate here to acquire cargo boxes and deliver them to target pads.",
+          target: TutorialTarget.gridArena,
+        ),
+        TutorialStep(
+          "Tap the [ PROGRAM CONSOLE ] button to expand the programming panel and reveal the instruction palette.",
+          target: TutorialTarget.console,
+        ),
+        TutorialStep(
+          "Below the grid is the INSTRUCTION PALETTE. Tap on the [TAKEOFF] block to queue it first.",
+          target: TutorialTarget.takeoff,
+        ),
+        TutorialStep(
+          "Great! The takeoff block is now added to the ACTIVE FLIGHT SEQUENCE workspace. Here, you can reorder or nest loops and logic.",
+          target: TutorialTarget.workspace,
+        ),
+        TutorialStep(
+          "This is the SIMULATION SPEED toggle. Tap it to speed up or slow down flight execution.",
+          target: TutorialTarget.speed,
+        ),
+        TutorialStep(
+          "If you get stuck on a mission, tap the SECTOR MISSION BRIEFING (Hint) button to decrypt advice.",
+          target: TutorialTarget.hint,
+        ),
+        TutorialStep(
+          "Read the objective and hints, then tap [DISMISS] to close the briefing.",
+          target: TutorialTarget.dismissHint,
+        ),
+        TutorialStep(
+          "If your path goes wrong, tap the RETRY / RESET button to clear the sequence and recall the drone.",
+          target: TutorialTarget.reset,
+        ),
+        TutorialStep(
+          "Tap [CONFIRM] to reset your program sequence and start fresh.",
+          target: TutorialTarget.confirmReset,
+        ),
+        TutorialStep(
+          "Now, rebuild the cargo flight plan: tap [TAKEOFF], [MOVE FWD], and [LAND] to acquire the cargo box, then another [TAKEOFF], [MOVE FWD], and [LAND] to deliver it.",
+          target: TutorialTarget.workspace,
+        ),
+        TutorialStep(
+          "Flight plan ready! Tap [RUN PROGRAM] to execute the flight sequence and watch the automatic delivery.",
+          target: TutorialTarget.runProgram,
+        ),
       ],
     ),
     Level(
       id: 'T2',
       title: 'TUTORIAL 2: BASIC FLIGHT PLAN',
-      description: 'TAKE OFF, MOVE FORWARD TO PICK UP THE CARGO BOX, LIFT OFF AGAIN, ROTATE LEFT, FLY TO THE TARGET PAD AND LAND.',
+      description:
+          'TAKE OFF, MOVE FORWARD TO PICK UP THE CARGO BOX, LIFT OFF AGAIN, ROTATE LEFT, FLY TO THE TARGET PAD AND LAND.',
       hint: 'FOLLOW THE STEP-BY-STEP FLIGHT INSTRUCTIONS TO DELIVER THE CARGO.',
       gridWidth: 4,
       gridHeight: 4,
@@ -295,21 +325,49 @@ class Level {
       energyCells: [],
       star3Target: 8,
       tutorialSteps: [
-        TutorialStep("Let's fly a complete logistics run. First, tap [TAKEOFF] to lift off.", target: TutorialTarget.takeoff),
-        TutorialStep("Move forward to the cell directly above the cargo box: tap [MOVE FWD].", target: TutorialTarget.moveForward),
-        TutorialStep("Lower the claw and grab the box: tap [LAND].", target: TutorialTarget.land),
-        TutorialStep("Box secured! Rise back into flight altitude: tap [TAKEOFF].", target: TutorialTarget.takeoff),
-        TutorialStep("The target pad is to our left. Pivot the drone 90 degrees left: tap [TURN LEFT].", target: TutorialTarget.turnLeft),
-        TutorialStep("Align with the target pad: tap [MOVE FWD].", target: TutorialTarget.moveForward),
-        TutorialStep("Move forward one more time to reach the target pad: tap [MOVE FWD].", target: TutorialTarget.moveForward),
-        TutorialStep("Finally, deliver the cargo by landing on the target pad: tap [LAND].", target: TutorialTarget.land),
-        TutorialStep("Flight queue ready! Tap [RUN PROGRAM] to watch the automatic execution.", target: TutorialTarget.runProgram),
+        TutorialStep(
+          "Let's fly a complete logistics run. First, tap [TAKEOFF] to lift off.",
+          target: TutorialTarget.takeoff,
+        ),
+        TutorialStep(
+          "Move forward to the cell directly above the cargo box: tap [MOVE FWD].",
+          target: TutorialTarget.moveForward,
+        ),
+        TutorialStep(
+          "Lower the claw and grab the box: tap [LAND].",
+          target: TutorialTarget.land,
+        ),
+        TutorialStep(
+          "Box secured! Rise back into flight altitude: tap [TAKEOFF].",
+          target: TutorialTarget.takeoff,
+        ),
+        TutorialStep(
+          "The target pad is to our left. Pivot the drone 90 degrees left: tap [TURN LEFT].",
+          target: TutorialTarget.turnLeft,
+        ),
+        TutorialStep(
+          "Align with the target pad: tap [MOVE FWD].",
+          target: TutorialTarget.moveForward,
+        ),
+        TutorialStep(
+          "Move forward one more time to reach the target pad: tap [MOVE FWD].",
+          target: TutorialTarget.moveForward,
+        ),
+        TutorialStep(
+          "Finally, deliver the cargo by landing on the target pad: tap [LAND].",
+          target: TutorialTarget.land,
+        ),
+        TutorialStep(
+          "Flight queue ready! Tap [RUN PROGRAM] to watch the automatic execution.",
+          target: TutorialTarget.runProgram,
+        ),
       ],
     ),
     Level(
       id: 'T3',
       title: 'TUTORIAL 3: LOOPS & LOGIC',
-      description: 'LEARN TO USE LOOP STRUCTURES TO FLY AUTOMATICALLY AND COVER MULTIPLE SQUARES WITHOUT WASTING MEMORY BLOCKS.',
+      description:
+          'LEARN TO USE LOOP STRUCTURES TO FLY AUTOMATICALLY AND COVER MULTIPLE SQUARES WITHOUT WASTING MEMORY BLOCKS.',
       hint: 'NEST THE MOVE FORWARD BLOCK INSIDE A REPEAT BLOCK.',
       gridWidth: 5,
       gridHeight: 5,
@@ -325,22 +383,70 @@ class Level {
       energyCells: [],
       star3Target: 9,
       tutorialSteps: [
-        TutorialStep("Loops let us fly long distances with fewer blocks. First, lift off: tap [TAKEOFF].", target: TutorialTarget.takeoff),
-        TutorialStep("Tap the [REPEAT] block in the palette to add a loop block structure.", target: TutorialTarget.repeatBlock),
-        TutorialStep("Change the repeat count to 3 by tapping the count dropdown.", target: TutorialTarget.firstRepeatDropdown),
-        TutorialStep("Tap the new REPEAT block in your workspace to select it.", target: TutorialTarget.firstRepeatBlock),
-        TutorialStep("With the loop active, tap [MOVE FWD] in the palette to insert it inside the loop.", target: TutorialTarget.moveForward),
-        TutorialStep("To add blocks after the loop, tap the workspace area or select the root container.", target: TutorialTarget.workspace),
-        TutorialStep("Now, land to pick up the cargo box: tap [LAND].", target: TutorialTarget.land),
-        TutorialStep("Lift off again with the cargo box: tap [TAKEOFF].", target: TutorialTarget.takeoff),
-        TutorialStep("Orient north towards the target pad: tap [TURN LEFT].", target: TutorialTarget.turnLeft),
-        TutorialStep("Add a second loop: tap the [REPEAT] block in the palette.", target: TutorialTarget.repeatBlock),
-        TutorialStep("Set its loop count to 3 as well.", target: TutorialTarget.secondRepeatDropdown),
-        TutorialStep("Tap this second REPEAT block in your workspace to select it.", target: TutorialTarget.secondRepeatBlock),
-        TutorialStep("Tap [MOVE FWD] to queue it inside this second loop.", target: TutorialTarget.moveForward),
-        TutorialStep("Select the workspace or root container to continue after the loop.", target: TutorialTarget.workspace),
-        TutorialStep("Finally, land on the target pad: tap [LAND].", target: TutorialTarget.land),
-        TutorialStep("Program complete! Tap [RUN PROGRAM] to execute your flight path!", target: TutorialTarget.runProgram),
+        TutorialStep(
+          "Loops let us fly long distances with fewer blocks. First, lift off: tap [TAKEOFF].",
+          target: TutorialTarget.takeoff,
+        ),
+        TutorialStep(
+          "Tap the [REPEAT] block in the palette to add a loop block structure.",
+          target: TutorialTarget.repeatBlock,
+        ),
+        TutorialStep(
+          "Change the repeat count to 3 by tapping the count dropdown.",
+          target: TutorialTarget.firstRepeatDropdown,
+        ),
+        TutorialStep(
+          "Tap the new REPEAT block in your workspace to select it.",
+          target: TutorialTarget.firstRepeatBlock,
+        ),
+        TutorialStep(
+          "With the loop active, tap [MOVE FWD] in the palette to insert it inside the loop.",
+          target: TutorialTarget.moveForward,
+        ),
+        TutorialStep(
+          "To add blocks after the loop, tap the workspace area or select the root container.",
+          target: TutorialTarget.workspace,
+        ),
+        TutorialStep(
+          "Now, land to pick up the cargo box: tap [LAND].",
+          target: TutorialTarget.land,
+        ),
+        TutorialStep(
+          "Lift off again with the cargo box: tap [TAKEOFF].",
+          target: TutorialTarget.takeoff,
+        ),
+        TutorialStep(
+          "Orient north towards the target pad: tap [TURN LEFT].",
+          target: TutorialTarget.turnLeft,
+        ),
+        TutorialStep(
+          "Add a second loop: tap the [REPEAT] block in the palette.",
+          target: TutorialTarget.repeatBlock,
+        ),
+        TutorialStep(
+          "Set its loop count to 3 as well.",
+          target: TutorialTarget.secondRepeatDropdown,
+        ),
+        TutorialStep(
+          "Tap this second REPEAT block in your workspace to select it.",
+          target: TutorialTarget.secondRepeatBlock,
+        ),
+        TutorialStep(
+          "Tap [MOVE FWD] to queue it inside this second loop.",
+          target: TutorialTarget.moveForward,
+        ),
+        TutorialStep(
+          "Select the workspace or root container to continue after the loop.",
+          target: TutorialTarget.workspace,
+        ),
+        TutorialStep(
+          "Finally, land on the target pad: tap [LAND].",
+          target: TutorialTarget.land,
+        ),
+        TutorialStep(
+          "Program complete! Tap [RUN PROGRAM] to execute your flight path!",
+          target: TutorialTarget.runProgram,
+        ),
       ],
     ),
   ];
@@ -349,8 +455,10 @@ class Level {
     Level(
       id: 'N1',
       title: 'FIRST LIFTOFF',
-      description: 'Acquire the cargo box at (2, 4) and deliver it to the target pad at (4, 4).',
-      hint: 'Takeoff, move forward twice, land to pick up cargo, takeoff again, move forward twice, land on target.',
+      description:
+          'Acquire the cargo box at (2, 4) and deliver it to the target pad at (4, 4).',
+      hint:
+          'Takeoff, move forward twice, land to pick up cargo, takeoff again, move forward twice, land on target.',
       tutorialSteps: null,
       gridWidth: 5,
       gridHeight: 5,
@@ -364,13 +472,16 @@ class Level {
       initialBattery: 40,
       obstacles: [],
       energyCells: [],
-      star3Target: 8,  // 8 blocks minimum; 4★ unreachable (intro level by design)
+      star3Target:
+          8, // 8 blocks minimum; 4★ unreachable (intro level by design)
     ),
     Level(
       id: 'N2',
       title: 'YAW DRIFT',
-      description: 'Navigate a right angle bend. Takeoff, turn right, and fly to the cargo.',
-      hint: 'Rotate the drone using [TURN RIGHT] to face south before moving forward.',
+      description:
+          'Navigate a right angle bend. Takeoff, turn right, and fly to the cargo.',
+      hint:
+          'Rotate the drone using [TURN RIGHT] to face south before moving forward.',
       tutorialSteps: null,
       gridWidth: 5,
       gridHeight: 5,
@@ -384,13 +495,16 @@ class Level {
       initialBattery: 45,
       obstacles: [],
       energyCells: [],
-      star3Target: 10, // Tutorial path = 10 blocks = 3★; no shortcut available for 4★
+      star3Target:
+          10, // Tutorial path = 10 blocks = 3★; no shortcut available for 4★
     ),
     Level(
       id: 'N3',
       title: 'WALL TRANSIT',
-      description: 'A height 1 barrier blocks your path. Ascend to fly over it, and descend to land.',
-      hint: 'Ascend to height 2 to clear the height 1 wall. Descend to height 0 to grab cargo or land.',
+      description:
+          'A height 1 barrier blocks your path. Ascend to fly over it, and descend to land.',
+      hint:
+          'Ascend to height 2 to clear the height 1 wall. Descend to height 0 to grab cargo or land.',
       tutorialSteps: null,
       gridWidth: 5,
       gridHeight: 5,
@@ -412,8 +526,10 @@ class Level {
     Level(
       id: 'N4',
       title: 'CALIBRATION LOOP',
-      description: 'Use the Repeat block to cover a long straight path efficiently.',
-      hint: 'Place a [MOVE FORWARD] block inside a [REPEAT] loop block to save space.',
+      description:
+          'Use the Repeat block to cover a long straight path efficiently.',
+      hint:
+          'Place a [MOVE FORWARD] block inside a [REPEAT] loop block to save space.',
       tutorialSteps: null,
       gridWidth: 9,
       gridHeight: 5,
@@ -432,8 +548,10 @@ class Level {
     Level(
       id: 'N5',
       title: 'SENSORY SYSTEMS',
-      description: 'Utilize conditional blocks to check sensors and detect obstacles ahead.',
-      hint: 'Use a [WHILE] loop with a condition like (notHasCargo) to move forward automatically.',
+      description:
+          'Utilize conditional blocks to check sensors and detect obstacles ahead.',
+      hint:
+          'Use a [WHILE] loop with a condition like (notHasCargo) to move forward automatically.',
       tutorialSteps: null,
       gridWidth: 7,
       gridHeight: 5,
@@ -445,17 +563,17 @@ class Level {
       targetX: 6,
       targetY: 2,
       initialBattery: 40,
-      obstacles: [
-        Obstacle(x: 4, y: 2, height: 2),
-      ],
+      obstacles: [Obstacle(x: 4, y: 2, height: 2)],
       energyCells: [],
       star3Target: 11,
     ),
     Level(
       id: 'N6',
       title: 'ELEVATED CO-DOCK',
-      description: 'The cargo box is situated on top of a height 2 tower. Fly up to retrieve it.',
-      hint: 'Climb to altitude 3. Hover exactly over (2, 2) and land. Land height will match the obstacle.',
+      description:
+          'The cargo box is situated on top of a height 2 tower. Fly up to retrieve it.',
+      hint:
+          'Climb to altitude 3. Hover exactly over (2, 2) and land. Land height will match the obstacle.',
       gridWidth: 5,
       gridHeight: 5,
       startX: 0,
@@ -466,17 +584,17 @@ class Level {
       targetX: 4,
       targetY: 4,
       initialBattery: 50,
-      obstacles: [
-        Obstacle(x: 2, y: 2, height: 2),
-      ],
+      obstacles: [Obstacle(x: 2, y: 2, height: 2)],
       energyCells: [],
       star3Target: 18,
     ),
     Level(
       id: 'N7',
       title: 'SPIRAL DOCK',
-      description: 'Navigate inward along a spiral wall corridor to reach the cargo.',
-      hint: 'Move forward, turn right, and repeat the pattern to spiral in to the center.',
+      description:
+          'Navigate inward along a spiral wall corridor to reach the cargo.',
+      hint:
+          'Move forward, turn right, and repeat the pattern to spiral in to the center.',
       gridWidth: 6,
       gridHeight: 6,
       startX: 0,
@@ -502,7 +620,8 @@ class Level {
       id: 'N8',
       title: 'SLALOM slalom',
       description: 'Wiggle through a sequence of alternating vertical pillars.',
-      hint: 'Alternate turns: left, move, right, move, or use loops if you can find a repeating pattern.',
+      hint:
+          'Alternate turns: left, move, right, move, or use loops if you can find a repeating pattern.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -525,8 +644,10 @@ class Level {
     Level(
       id: 'N9',
       title: 'ENERGY DRAIN',
-      description: 'Your starting battery is extremely low. Collect fuel cells along the way.',
-      hint: 'The fuel cells are at altitude 1. Fly at height 1 to harvest them while moving forward.',
+      description:
+          'Your starting battery is extremely low. Collect fuel cells along the way.',
+      hint:
+          'The fuel cells are at altitude 1. Fly at height 1 to harvest them while moving forward.',
       gridWidth: 8,
       gridHeight: 5,
       startX: 0,
@@ -548,7 +669,8 @@ class Level {
       id: 'N10',
       title: 'CANYON VALLEY',
       description: 'Navigate up and down peaks to deliver the cargo.',
-      hint: 'Ascend over the first mountain, land to collect the box, then climb over the second peak.',
+      hint:
+          'Ascend over the first mountain, land to collect the box, then climb over the second peak.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -569,8 +691,10 @@ class Level {
     Level(
       id: 'N11',
       title: 'THE BRIDGEWAY',
-      description: 'Navigate a bridge with high walls. Avoid crashing into side girders.',
-      hint: 'Use symmetric movements or loops to glide straight down the central pathway.',
+      description:
+          'Navigate a bridge with high walls. Avoid crashing into side girders.',
+      hint:
+          'Use symmetric movements or loops to glide straight down the central pathway.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -594,7 +718,8 @@ class Level {
       id: 'N12',
       title: 'MAZE RUNNER',
       description: 'Find your way through a narrow maze of two-level walls.',
-      hint: 'Keep track of your turns: right, left, right, left, to avoid colliding with columns.',
+      hint:
+          'Keep track of your turns: right, left, right, left, to avoid colliding with columns.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -617,8 +742,10 @@ class Level {
     Level(
       id: 'N13',
       title: 'NESTED LOOP SCAN',
-      description: 'Use a nested loop structure to fly a zig-zag sweep pattern across sectors.',
-      hint: 'Nest a loop of movement inside another loop of rotations to repeat rows.',
+      description:
+          'Use a nested loop structure to fly a zig-zag sweep pattern across sectors.',
+      hint:
+          'Nest a loop of movement inside another loop of rotations to repeat rows.',
       gridWidth: 6,
       gridHeight: 6,
       startX: 0,
@@ -636,8 +763,10 @@ class Level {
     Level(
       id: 'N14',
       title: 'DOUBLE WALL TRANSIT',
-      description: 'Two separate wall barriers block the target. Leap over both in high flight.',
-      hint: 'Climb to height 3. Use loops to carry you over the double barriers.',
+      description:
+          'Two separate wall barriers block the target. Leap over both in high flight.',
+      hint:
+          'Climb to height 3. Use loops to carry you over the double barriers.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -652,16 +781,16 @@ class Level {
         Obstacle(x: 1, y: 4, height: 2),
         Obstacle(x: 5, y: 4, height: 2),
       ],
-      energyCells: [
-        EnergyCell(x: 3, y: 4, height: 3, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 3, y: 4, height: 3, charge: 15)],
       star3Target: 22,
     ),
     Level(
       id: 'N15',
       title: 'SINE WAVE FLIGHT',
-      description: 'Pillars oscillate in height: 1, 2, 3, 2, 1. Match your altitude changes.',
-      hint: 'Create a loop that ascends, moves forward, descends, and moves forward.',
+      description:
+          'Pillars oscillate in height: 1, 2, 3, 2, 1. Match your altitude changes.',
+      hint:
+          'Create a loop that ascends, moves forward, descends, and moves forward.',
       gridWidth: 9,
       gridHeight: 5,
       startX: 0,
@@ -685,8 +814,10 @@ class Level {
     Level(
       id: 'N16',
       title: 'VERTICAL SHAFTS',
-      description: 'Columns form narrow shafts. Move vertically and horizontally to navigate.',
-      hint: 'Perform climbing actions inside tight columns to get over the dividers.',
+      description:
+          'Columns form narrow shafts. Move vertically and horizontally to navigate.',
+      hint:
+          'Perform climbing actions inside tight columns to get over the dividers.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 7,
@@ -702,15 +833,14 @@ class Level {
         Obstacle(x: 4, y: 3, height: 3),
         Obstacle(x: 6, y: 3, height: 3),
       ],
-      energyCells: [
-        EnergyCell(x: 1, y: 5, height: 1, charge: 20),
-      ],
+      energyCells: [EnergyCell(x: 1, y: 5, height: 1, charge: 20)],
       star3Target: 25,
     ),
     Level(
       id: 'N17',
       title: 'CITY GRID TOWERS',
-      description: 'Towering skyscrapers block direct paths. Plan a winding horizontal route.',
+      description:
+          'Towering skyscrapers block direct paths. Plan a winding horizontal route.',
       hint: ' buildings are height 4, too high to climb over. Go around them!',
       gridWidth: 9,
       gridHeight: 9,
@@ -730,16 +860,16 @@ class Level {
         Obstacle(x: 5, y: 4, height: 4),
         Obstacle(x: 5, y: 5, height: 4),
       ],
-      energyCells: [
-        EnergyCell(x: 0, y: 6, height: 1, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 0, y: 6, height: 1, charge: 15)],
       star3Target: 30,
     ),
     Level(
       id: 'N18',
       title: 'SUMMIT RETRIEVAL',
-      description: 'Climb a massive mountain peak to retrieve cargo at the top.',
-      hint: 'The peak is height 3. Ascent to height 3 to grab the box at the summit.',
+      description:
+          'Climb a massive mountain peak to retrieve cargo at the top.',
+      hint:
+          'The peak is height 3. Ascent to height 3 to grab the box at the summit.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -750,19 +880,17 @@ class Level {
       targetX: 7,
       targetY: 7,
       initialBattery: 60,
-      obstacles: [
-        Obstacle(x: 3, y: 3, height: 3),
-      ],
-      energyCells: [
-        EnergyCell(x: 3, y: 3, height: 4, charge: 25),
-      ],
+      obstacles: [Obstacle(x: 3, y: 3, height: 3)],
+      energyCells: [EnergyCell(x: 3, y: 3, height: 4, charge: 25)],
       star3Target: 22,
     ),
     Level(
       id: 'N19',
       title: 'LABYRINTH LOOP',
-      description: 'Navigate a complex maze of walls using nested structures and sensors.',
-      hint: 'Combine a While loop with If checks to automatically follow the corridors.',
+      description:
+          'Navigate a complex maze of walls using nested structures and sensors.',
+      hint:
+          'Combine a While loop with If checks to automatically follow the corridors.',
       gridWidth: 9,
       gridHeight: 9,
       startX: 0,
@@ -781,16 +909,16 @@ class Level {
         Obstacle(x: 6, y: 3, height: 2),
         Obstacle(x: 6, y: 5, height: 2),
       ],
-      energyCells: [
-        EnergyCell(x: 4, y: 4, height: 1, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 4, y: 4, height: 1, charge: 15)],
       star3Target: 24,
     ),
     Level(
       id: 'N20',
       title: 'SECTOR COMMANDER',
-      description: 'The final exam. Combine nested loops, altitude shifts, and energy cell collection.',
-      hint: 'Plan your route to harvest energy, lift cargo from heights, and land under 30 blocks.',
+      description:
+          'The final exam. Combine nested loops, altitude shifts, and energy cell collection.',
+      hint:
+          'Plan your route to harvest energy, lift cargo from heights, and land under 30 blocks.',
       gridWidth: 10,
       gridHeight: 10,
       startX: 0,
@@ -820,7 +948,8 @@ class Level {
     Level(
       id: 'H1',
       title: 'HARD LAUNCH',
-      description: 'Acquire the cargo box at (2, 4) and deliver it to the target pad with high winds and 70% battery.',
+      description:
+          'Acquire the cargo box at (2, 4) and deliver it to the target pad with high winds and 70% battery.',
       hint: 'Navigate directly. Every move drains battery; don\'t waste steps.',
       gridWidth: 5,
       gridHeight: 5,
@@ -832,9 +961,7 @@ class Level {
       targetX: 4,
       targetY: 4,
       initialBattery: 25,
-      obstacles: [
-        Obstacle(x: 1, y: 3, height: 1),
-      ],
+      obstacles: [Obstacle(x: 1, y: 3, height: 1)],
       energyCells: [],
       star3Target: 8,
     ),
@@ -863,7 +990,8 @@ class Level {
     Level(
       id: 'H3',
       title: 'COMPACT WALLS',
-      description: 'Three high walls block your trajectory. Ascend high to clear them.',
+      description:
+          'Three high walls block your trajectory. Ascend high to clear them.',
       hint: 'Climb to height 3 to clear the buildings at altitude 2.',
       gridWidth: 6,
       gridHeight: 6,
@@ -886,7 +1014,8 @@ class Level {
     Level(
       id: 'H4',
       title: 'TENSION PATROLS',
-      description: 'Perform repetitive scanning loops with very tight fuel reserves.',
+      description:
+          'Perform repetitive scanning loops with very tight fuel reserves.',
       hint: 'Use a compact repeat loop to fly forward and pick up cargo.',
       gridWidth: 8,
       gridHeight: 5,
@@ -898,19 +1027,17 @@ class Level {
       targetX: 7,
       targetY: 2,
       initialBattery: 30,
-      obstacles: [
-        Obstacle(x: 3, y: 2, height: 1),
-      ],
-      energyCells: [
-        EnergyCell(x: 2, y: 2, height: 1, charge: 10),
-      ],
+      obstacles: [Obstacle(x: 3, y: 2, height: 1)],
+      energyCells: [EnergyCell(x: 2, y: 2, height: 1, charge: 10)],
       star3Target: 10,
     ),
     Level(
       id: 'H5',
       title: 'DENSE SECTOR SCAN',
-      description: 'Use sensory while/if statements to weave around active pillars.',
-      hint: 'Use sensors to check for obstacle ahead and turn right automatically.',
+      description:
+          'Use sensory while/if statements to weave around active pillars.',
+      hint:
+          'Use sensors to check for obstacle ahead and turn right automatically.',
       gridWidth: 7,
       gridHeight: 7,
       startX: 0,
@@ -926,16 +1053,16 @@ class Level {
         Obstacle(x: 3, y: 3, height: 2),
         Obstacle(x: 5, y: 3, height: 2),
       ],
-      energyCells: [
-        EnergyCell(x: 3, y: 5, height: 1, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 3, y: 5, height: 1, charge: 15)],
       star3Target: 16,
     ),
     Level(
       id: 'H6',
       title: 'SKY-HIGH TERMINAL',
-      description: 'The cargo box is high on a height 3 skyscraper. Battery is extremely scarce.',
-      hint: 'Fly high to height 4 to grab the cargo at (2, 2). Collect the cell to survive.',
+      description:
+          'The cargo box is high on a height 3 skyscraper. Battery is extremely scarce.',
+      hint:
+          'Fly high to height 4 to grab the cargo at (2, 2). Collect the cell to survive.',
       gridWidth: 5,
       gridHeight: 5,
       startX: 0,
@@ -946,19 +1073,16 @@ class Level {
       targetX: 4,
       targetY: 4,
       initialBattery: 25,
-      obstacles: [
-        Obstacle(x: 2, y: 2, height: 3),
-      ],
-      energyCells: [
-        EnergyCell(x: 2, y: 2, height: 4, charge: 15),
-      ],
+      obstacles: [Obstacle(x: 2, y: 2, height: 3)],
+      energyCells: [EnergyCell(x: 2, y: 2, height: 4, charge: 15)],
       star3Target: 18,
     ),
     Level(
       id: 'H7',
       title: 'COMPRESSED SPIRAL',
       description: 'Inward spiral corridor with battery siphons.',
-      hint: 'Find the repeating rotate/move sequence to clear within constraints.',
+      hint:
+          'Find the repeating rotate/move sequence to clear within constraints.',
       gridWidth: 6,
       gridHeight: 6,
       startX: 0,
@@ -977,9 +1101,7 @@ class Level {
         Obstacle(x: 3, y: 3, height: 2),
         Obstacle(x: 1, y: 3, height: 2),
       ],
-      energyCells: [
-        EnergyCell(x: 2, y: 2, height: 3, charge: 10),
-      ],
+      energyCells: [EnergyCell(x: 2, y: 2, height: 3, charge: 10)],
       star3Target: 22,
     ),
     Level(
@@ -1003,15 +1125,14 @@ class Level {
         Obstacle(x: 4, y: 3, height: 3),
         Obstacle(x: 4, y: 5, height: 3),
       ],
-      energyCells: [
-        EnergyCell(x: 3, y: 3, height: 1, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 3, y: 3, height: 1, charge: 15)],
       star3Target: 22,
     ),
     Level(
       id: 'H9',
       title: 'CRITICAL RESERVES',
-      description: 'Battery starts at 8. You must harvest cells at height 2 to survive.',
+      description:
+          'Battery starts at 8. You must harvest cells at height 2 to survive.',
       hint: 'Ascend immediately to height 2 and sweep cells.',
       gridWidth: 8,
       gridHeight: 5,
@@ -1049,9 +1170,7 @@ class Level {
         Obstacle(x: 1, y: 3, height: 3),
         Obstacle(x: 5, y: 3, height: 3),
       ],
-      energyCells: [
-        EnergyCell(x: 3, y: 3, height: 4, charge: 20),
-      ],
+      energyCells: [EnergyCell(x: 3, y: 3, height: 4, charge: 20)],
       star3Target: 20,
     ),
     Level(
@@ -1117,9 +1236,7 @@ class Level {
       targetX: 0,
       targetY: 0,
       initialBattery: 45,
-      obstacles: [
-        Obstacle(x: 2, y: 2, height: 1),
-      ],
+      obstacles: [Obstacle(x: 2, y: 2, height: 1)],
       energyCells: [],
       star3Target: 16,
     ),
@@ -1142,9 +1259,7 @@ class Level {
         Obstacle(x: 1, y: 4, height: 3),
         Obstacle(x: 5, y: 4, height: 3),
       ],
-      energyCells: [
-        EnergyCell(x: 3, y: 4, height: 4, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 3, y: 4, height: 4, charge: 15)],
       star3Target: 22,
     ),
     Level(
@@ -1192,9 +1307,7 @@ class Level {
         Obstacle(x: 4, y: 3, height: 4),
         Obstacle(x: 6, y: 3, height: 4),
       ],
-      energyCells: [
-        EnergyCell(x: 1, y: 5, height: 1, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 1, y: 5, height: 1, charge: 15)],
       star3Target: 25,
     ),
     Level(
@@ -1220,16 +1333,15 @@ class Level {
         Obstacle(x: 5, y: 4, height: 4),
         Obstacle(x: 5, y: 5, height: 4),
       ],
-      energyCells: [
-        EnergyCell(x: 0, y: 6, height: 1, charge: 15),
-      ],
+      energyCells: [EnergyCell(x: 0, y: 6, height: 1, charge: 15)],
       star3Target: 30,
     ),
     Level(
       id: 'H18',
       title: 'SUMMIT RETRIEVAL HARD',
       description: 'Summit climb with 40 initial battery.',
-      hint: 'Quickly rise, collect the cargo, and descend straight to the target.',
+      hint:
+          'Quickly rise, collect the cargo, and descend straight to the target.',
       gridWidth: 8,
       gridHeight: 8,
       startX: 0,
@@ -1240,12 +1352,8 @@ class Level {
       targetX: 7,
       targetY: 7,
       initialBattery: 40,
-      obstacles: [
-        Obstacle(x: 3, y: 3, height: 3),
-      ],
-      energyCells: [
-        EnergyCell(x: 3, y: 3, height: 4, charge: 20),
-      ],
+      obstacles: [Obstacle(x: 3, y: 3, height: 3)],
+      energyCells: [EnergyCell(x: 3, y: 3, height: 4, charge: 20)],
       star3Target: 22,
     ),
     Level(
@@ -1271,16 +1379,16 @@ class Level {
         Obstacle(x: 6, y: 3, height: 2),
         Obstacle(x: 6, y: 5, height: 2),
       ],
-      energyCells: [
-        EnergyCell(x: 4, y: 4, height: 1, charge: 12),
-      ],
+      energyCells: [EnergyCell(x: 4, y: 4, height: 1, charge: 12)],
       star3Target: 24,
     ),
     Level(
       id: 'H20',
       title: 'HARD SECTOR COMMANDER',
-      description: 'The ultimate final exam in hard mode. Perfect code sequences are required.',
-      hint: 'Sweep cells, get cargo, fly over obstacle towers, and land perfectly.',
+      description:
+          'The ultimate final exam in hard mode. Perfect code sequences are required.',
+      hint:
+          'Sweep cells, get cargo, fly over obstacle towers, and land perfectly.',
       gridWidth: 10,
       gridHeight: 10,
       startX: 0,
@@ -1308,13 +1416,15 @@ class Level {
 
   static Level getDailyLevel() {
     final now = DateTime.now();
-    final index = (now.day + now.month + now.year) % predefinedNormalLevels.length;
+    final index =
+        (now.day + now.month + now.year) % predefinedNormalLevels.length;
     final base = predefinedNormalLevels[index];
-    
+
     return Level(
       id: 'D${now.day}',
       title: 'DAILY CALIBRATION: ${base.title}',
-      description: 'DAILY PILOT CHALLENGE. Complete this optimized calibration course to sync navigation telemetry. Target constraints are tightened!',
+      description:
+          'DAILY PILOT CHALLENGE. Complete this optimized calibration course to sync navigation telemetry. Target constraints are tightened!',
       hint: base.hint,
       gridWidth: base.gridWidth,
       gridHeight: base.gridHeight,

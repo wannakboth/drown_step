@@ -31,8 +31,8 @@ class GameGridPainter extends CustomPainter {
     final cellWidth = size.width / level.gridWidth;
     final cellHeight = size.height / level.gridHeight;
 
-    // 1. Draw Grid Background
-    final bgPaint = Paint()..color = CyberTheme.gridBg;
+    // 1. Draw Grid Background (transparent to allow 3D Land Base and Radar Sweeper to show through)
+    final bgPaint = Paint()..color = Colors.transparent;
     canvas.drawRect(Offset.zero & size, bgPaint);
 
     // Draw architectural grid lines
@@ -118,81 +118,7 @@ class GameGridPainter extends CustomPainter {
       _drawDottedLine(canvas, droneCenter, targetCenter, guidePaint, 6.0, 4.0);
     }
 
-    // 4. Draw Landing Zone (Target Pad)
-    final padRadius = math.min(cellWidth, cellHeight) * 0.38;
-    final pulseScale = 1.0 + 0.08 * math.sin(animationValue * 2 * math.pi);
-
-    final padGlowPaint = Paint()
-      ..color = status == GameStatus.success
-          ? CyberTheme.neonGreen.withValues(alpha: 0.25)
-          : CyberTheme.neonGreen.withValues(alpha: 0.06 * (2.0 - pulseScale))
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(targetCenter, padRadius * (status == GameStatus.success ? 1.0 : pulseScale), padGlowPaint);
-
-    final ringPaint = Paint()
-      ..color = status == GameStatus.success
-          ? CyberTheme.neonGreen
-          : CyberTheme.neonGreen.withValues(alpha: 0.75)
-      ..strokeWidth = status == GameStatus.success ? 2.5 : 1.5
-      ..style = PaintingStyle.stroke;
-    canvas.drawCircle(targetCenter, padRadius, ringPaint);
-
-    // Draw corner brackets
-    final bracketLength = padRadius * 0.35;
-    final bracketOffset = padRadius * 0.75;
-    final bracketPaint = Paint()
-      ..color = status == GameStatus.success ? CyberTheme.neonGreen : CyberTheme.neonGreen.withValues(alpha: 0.8)
-      ..strokeWidth = status == GameStatus.success ? 2.5 : 1.8
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawPath(
-      Path()
-        ..moveTo(targetCenter.dx - bracketOffset, targetCenter.dy - bracketOffset + bracketLength)
-        ..lineTo(targetCenter.dx - bracketOffset, targetCenter.dy - bracketOffset)
-        ..lineTo(targetCenter.dx - bracketOffset + bracketLength, targetCenter.dy - bracketOffset),
-      bracketPaint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(targetCenter.dx + bracketOffset - bracketLength, targetCenter.dy - bracketOffset)
-        ..lineTo(targetCenter.dx + bracketOffset, targetCenter.dy - bracketOffset)
-        ..lineTo(targetCenter.dx + bracketOffset, targetCenter.dy - bracketOffset + bracketLength),
-      bracketPaint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(targetCenter.dx - bracketOffset, targetCenter.dy + bracketOffset - bracketLength)
-        ..lineTo(targetCenter.dx - bracketOffset, targetCenter.dy + bracketOffset)
-        ..lineTo(targetCenter.dx - bracketOffset + bracketLength, targetCenter.dy + bracketOffset),
-      bracketPaint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(targetCenter.dx + bracketOffset - bracketLength, targetCenter.dy + bracketOffset)
-        ..lineTo(targetCenter.dx + bracketOffset, targetCenter.dy + bracketOffset)
-        ..lineTo(targetCenter.dx + bracketOffset, targetCenter.dy + bracketOffset - bracketLength),
-      bracketPaint,
-    );
-
-    // Target Text "DROP" or "DELIVERED"
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: status == GameStatus.success ? 'SECURED' : 'DROP',
-        style: TextStyle(
-          color: CyberTheme.neonGreen,
-          fontSize: 10.5,
-          fontFamily: 'ShareTechMono',
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.8,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(targetCenter.dx - textPainter.width / 2, targetCenter.dy - textPainter.height / 2),
-    );
+    // Landing Zone target pad, obstacles, and energy cells are now drawn as animated 3D widgets in the parent stack.
 
     // 5. Draw Crash / Wrong Landing Highlight
     if (status == GameStatus.crashed) {
@@ -241,113 +167,7 @@ class GameGridPainter extends CustomPainter {
     }
 
 
-    // 6. Draw Obstacles (Buildings)
-    for (final obs in level.obstacles) {
-      final obsLeft = obs.x * cellWidth + 6.0;
-      final obsTop = obs.y * cellHeight + 6.0;
-      final obsWidth = cellWidth - 12.0;
-      final obsHeightDim = cellHeight - 12.0;
-      final rect = Rect.fromLTWH(obsLeft, obsTop, obsWidth, obsHeightDim);
-      final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8.0));
-
-      final obstacleGradient = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          CyberTheme.neonPink.withValues(alpha: 0.15),
-          CyberTheme.neonPink.withValues(alpha: 0.02),
-        ],
-      );
-
-      canvas.drawRRect(
-        rrect,
-        Paint()
-          ..shader = obstacleGradient.createShader(rect)
-          ..style = PaintingStyle.fill,
-      );
-
-      final borderPaint = Paint()
-        ..color = CyberTheme.neonPink.withValues(alpha: 0.8)
-        ..strokeWidth = 1.2
-        ..style = PaintingStyle.stroke;
-      canvas.drawRRect(rrect, borderPaint);
-
-      final stripePaint = Paint()
-        ..color = CyberTheme.neonPink.withValues(alpha: 0.25)
-        ..strokeWidth = 1.0;
-      
-      for (int h = 1; h < obs.height; h++) {
-        final double lineY = obsTop + (obsHeightDim * (h / obs.height));
-        canvas.drawLine(Offset(obsLeft + 4, lineY), Offset(obsLeft + obsWidth - 4, lineY), stripePaint);
-      }
-
-      final obsTextPainter = TextPainter(
-        text: TextSpan(
-          text: 'H:${obs.height}',
-          style: TextStyle(
-            color: CyberTheme.neonPink,
-            fontSize: 12.0,
-            fontFamily: 'ShareTechMono',
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      obsTextPainter.layout();
-      obsTextPainter.paint(
-        canvas,
-        Offset(rect.center.dx - obsTextPainter.width / 2, rect.center.dy - obsTextPainter.height / 2),
-      );
-    }
-
-    // 7. Draw Collectibles (Energy Cells)
-    final floatOffset = 3.0 * math.sin(animationValue * 2 * math.pi);
-    for (final cell in remainingEnergyCells) {
-      final cellCenterX = (cell.x + 0.5) * cellWidth;
-      final cellCenterY = (cell.y + 0.5) * cellHeight + floatOffset;
-      final radius = math.min(cellWidth, cellHeight) * 0.18;
-
-      final diamondPath = Path()
-        ..moveTo(cellCenterX, cellCenterY - radius)
-        ..lineTo(cellCenterX + radius, cellCenterY)
-        ..lineTo(cellCenterX, cellCenterY + radius)
-        ..lineTo(cellCenterX - radius, cellCenterY)
-        ..close();
-
-      final cellPaint = Paint()
-        ..color = CyberTheme.neonYellow.withValues(alpha: 0.12)
-        ..style = PaintingStyle.fill;
-      canvas.drawPath(diamondPath, cellPaint);
-
-      final cellBorderPaint = Paint()
-        ..color = CyberTheme.neonYellow.withValues(alpha: 0.9)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(diamondPath, cellBorderPaint);
-
-      final corePaint = Paint()
-        ..color = CyberTheme.neonYellow
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(cellCenterX, cellCenterY), 3.0, corePaint);
-
-      final cellTextPainter = TextPainter(
-        text: TextSpan(
-          text: 'ALT ${cell.height}',
-          style: TextStyle(
-            color: CyberTheme.neonYellow,
-            fontSize: 10.0,
-            fontFamily: 'ShareTechMono',
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      cellTextPainter.layout();
-      cellTextPainter.paint(
-        canvas,
-        Offset(cellCenterX - cellTextPainter.width / 2, cellCenterY + radius + 3.0),
-      );
-    }
+    // Obstacles and energy cells are drawn as volumetric stack widgets in game_screen.dart.
   }
 
   // Helper method to draw a customized dotted line

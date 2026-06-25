@@ -48,7 +48,10 @@ class CommandPanel extends ConsumerStatefulWidget {
 class _CommandPanelState extends ConsumerState<CommandPanel> {
   late final ScrollController _workspaceScrollController;
   late final ScrollController _paletteScrollController;
+  late final ScrollController _hintStepsScrollController;
   int _currentTutorialStep = 0;
+  int _nextHintStepIndex = 0;
+  List<ActionType>? _cachedHintSteps;
   String? _lastLevelId;
   OverlayEntry? _tutorialOverlay;
   bool _tutorialDismissed = false;
@@ -305,6 +308,7 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
     super.initState();
     _workspaceScrollController = ScrollController();
     _paletteScrollController = ScrollController();
+    _hintStepsScrollController = ScrollController();
   }
 
   @override
@@ -315,6 +319,7 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
     _tutorialOverlay = null;
     _workspaceScrollController.dispose();
     _paletteScrollController.dispose();
+    _hintStepsScrollController.dispose();
     super.dispose();
   }
 
@@ -897,6 +902,43 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
       }
     });
 
+    ref.listen<bool>(showHintGuidanceProvider, (previous, next) {
+      if (next == false) {
+        setState(() {
+          _nextHintStepIndex = 0;
+          _cachedHintSteps = null;
+        });
+      } else if (next == true) {
+        final stateVal = ref.read(gameStateProvider);
+        final startState = simulateProgramToState(
+          stateVal.level,
+          stateVal.program,
+        );
+        final path = solveLevelBFS(stateVal.level, startState: startState);
+        setState(() {
+          _nextHintStepIndex = 0;
+          _cachedHintSteps = path != null
+              ? path.take(3).toList()
+              : <ActionType>[];
+        });
+      }
+    });
+
+    ref.listen<String?>(lastAddedBlockIdProvider, (previous, next) {
+      if (next != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_workspaceScrollController.hasClients) {
+            _workspaceScrollController.animateTo(
+              _workspaceScrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+            ref.read(lastAddedBlockIdProvider.notifier).setLastAddedId(null);
+          }
+        });
+      }
+    });
+
     final state = ref.watch(gameStateProvider);
     final notifier = ref.read(gameStateProvider.notifier);
     final isRunning = state.status == GameStatus.running;
@@ -908,6 +950,8 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
     if (_lastLevelId != level.id) {
       _lastLevelId = level.id;
       _currentTutorialStep = 0;
+      _nextHintStepIndex = 0;
+      _cachedHintSteps = null;
       _tutorialDismissed = false; // new level → show tutorial again
       _lastShownStepIndex = null;
       _tutorialTimer?.cancel();
@@ -972,219 +1016,201 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // RUN/PAUSE button
-                              CyberCard(
-                                key: TutorialKeys.runProgram,
-                                borderColor: isRunning
-                                    ? CyberTheme.neonPink.withValues(alpha: 0.9)
-                                    : CyberTheme.neonCyan.withValues(
-                                        alpha: 0.9,
+                    child: SizedBox(
+                      width: constraints.maxWidth < 380.0
+                          ? 380.0
+                          : constraints.maxWidth,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // RUN/PAUSE button
+                                CyberCard(
+                                  key: TutorialKeys.runProgram,
+                                  borderColor: isRunning
+                                      ? CyberTheme.neonPink.withValues(
+                                          alpha: 0.9,
+                                        )
+                                      : CyberTheme.neonCyan.withValues(
+                                          alpha: 0.9,
+                                        ),
+                                  backgroundColor: isRunning
+                                      ? CyberTheme.neonPink
+                                      : CyberTheme.neonCyan,
+                                  chamferSize: 6.0,
+                                  showAccents: false,
+                                  child: InkWell(
+                                    onTap: () {
+                                      _playClick();
+                                      if (isRunning) {
+                                        notifier.pauseSimulation();
+                                      } else {
+                                        notifier.runSimulation();
+                                      }
+                                      _onTutorialActionTapped(
+                                        TutorialTarget.runProgram,
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isNarrow ? 10.0 : 14.0,
+                                        vertical: isNarrow ? 8.0 : 10.0,
                                       ),
-                                backgroundColor: isRunning
-                                    ? CyberTheme.neonPink
-                                    : CyberTheme.neonCyan,
-                                chamferSize: 6.0,
-                                showAccents: false,
-                                child: InkWell(
-                                  onTap: () {
-                                    _playClick();
-                                    if (isRunning) {
-                                      notifier.pauseSimulation();
-                                    } else {
-                                      notifier.runSimulation();
-                                    }
-                                    _onTutorialActionTapped(
-                                      TutorialTarget.runProgram,
-                                    );
-                                  },
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isNarrow ? 10.0 : 14.0,
-                                      vertical: isNarrow ? 8.0 : 10.0,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          isRunning
-                                              ? Icons.pause
-                                              : Icons.play_arrow,
-                                          size: isNarrow ? 14.0 : 16.0,
-                                          color: CyberTheme.darkBg,
-                                        ),
-                                        const SizedBox(width: 4.0),
-                                        Text(
-                                          isNarrow
-                                              ? (isRunning
-                                                    ? 'PAUSE'
-                                                    : 'RUN PROGRAM')
-                                              : (isRunning
-                                                    ? 'PAUSE FLIGHT PROGRAM'
-                                                    : 'RUN FLIGHT PROGRAM'),
-                                          style:
-                                              CyberTheme.fontCode(
-                                                size: isNarrow ? 13 : 14.0,
-                                                color: CyberTheme.darkBg,
-                                              ).copyWith(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                        ),
-                                      ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isRunning
+                                                ? Icons.pause
+                                                : Icons.play_arrow,
+                                            size: isNarrow ? 14.0 : 16.0,
+                                            color: CyberTheme.darkBg,
+                                          ),
+                                          const SizedBox(width: 4.0),
+                                          Text(
+                                            isNarrow
+                                                ? (isRunning
+                                                      ? 'PAUSE'
+                                                      : 'RUN PROGRAM')
+                                                : (isRunning
+                                                      ? 'PAUSE FLIGHT PROGRAM'
+                                                      : 'RUN FLIGHT PROGRAM'),
+                                            style:
+                                                CyberTheme.fontCode(
+                                                  size: isNarrow ? 13 : 14.0,
+                                                  color: CyberTheme.darkBg,
+                                                ).copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: isNarrow ? 6.0 : 8.0),
-                              // STEP button
-                              CyberCard(
-                                borderColor: isRunning
-                                    ? CyberTheme.textMuted.withValues(alpha: 0.2)
-                                    : CyberTheme.neonYellow.withValues(alpha: 0.9),
-                                backgroundColor: isRunning
-                                    ? Colors.transparent
-                                    : CyberTheme.neonYellow.withValues(alpha: 0.1),
-                                borderWidth: 1.0,
-                                chamferSize: 6.0,
-                                showAccents: false,
-                                child: InkWell(
-                                  onTap: isRunning
-                                      ? null
-                                      : () {
-                                          _playClick();
-                                          notifier.stepSimulation();
-                                        },
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isNarrow ? 10.0 : 14.0,
-                                      vertical: isNarrow ? 8.0 : 10.0,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.skip_next,
-                                          size: isNarrow ? 14.0 : 16.0,
-                                          color: isRunning
-                                              ? CyberTheme.textMuted
-                                              : CyberTheme.neonYellow,
+                                SizedBox(width: isNarrow ? 6.0 : 8.0),
+                                // STEP button
+                                CyberCard(
+                                  borderColor: isRunning
+                                      ? CyberTheme.textMuted.withValues(
+                                          alpha: 0.2,
+                                        )
+                                      : CyberTheme.neonYellow.withValues(
+                                          alpha: 0.9,
                                         ),
-                                        const SizedBox(width: 4.0),
-                                        Text(
-                                          isNarrow ? 'STEP' : 'STEP PROGRAM',
-                                          style: CyberTheme.fontCode(
-                                            size: isNarrow ? 13 : 14.0,
+                                  backgroundColor: isRunning
+                                      ? Colors.transparent
+                                      : CyberTheme.neonYellow.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                  borderWidth: 1.0,
+                                  chamferSize: 6.0,
+                                  showAccents: false,
+                                  child: InkWell(
+                                    onTap: isRunning
+                                        ? null
+                                        : () {
+                                            _playClick();
+                                            notifier.stepSimulation();
+                                          },
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isNarrow ? 10.0 : 14.0,
+                                        vertical: isNarrow ? 8.0 : 10.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.skip_next,
+                                            size: isNarrow ? 14.0 : 16.0,
                                             color: isRunning
                                                 ? CyberTheme.textMuted
                                                 : CyberTheme.neonYellow,
-                                          ).copyWith(
-                                            fontWeight: FontWeight.bold,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 4.0),
+                                          Text(
+                                            isNarrow ? 'STEP' : 'STEP PROGRAM',
+                                            style:
+                                                CyberTheme.fontCode(
+                                                  size: isNarrow ? 13 : 14.0,
+                                                  color: isRunning
+                                                      ? CyberTheme.textMuted
+                                                      : CyberTheme.neonYellow,
+                                                ).copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              SizedBox(width: isNarrow ? 6.0 : 8.0),
-                              // Reset button
-                              CyberCard(
-                                key: TutorialKeys.reset,
-                                borderColor: CyberTheme.borderTranslucent,
-                                backgroundColor: const Color(0xFF1E293B),
-                                chamferSize: 5.0,
-                                showAccents: false,
-                                child: InkWell(
-                                  onTap: () {
-                                    _playClick();
-                                    _onTutorialActionTapped(
-                                      TutorialTarget.reset,
-                                    );
-                                    _showConfirmDialog(
-                                      context,
-                                      title: 'RETRY SIMULATION',
-                                      message:
-                                          'Are you sure you want to restart the flight simulation?',
-                                      onConfirm: () {
-                                        notifier.clearProgram();
-                                        notifier.resetSimulation();
-                                      },
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isNarrow ? 12.0 : 14.0,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      Icons.refresh,
-                                      size: isNarrow ? 18.0 : 20.0,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: isNarrow ? 6.0 : 8.0),
-                              // Hint button
-                              CyberCard(
-                                key: TutorialKeys.hint,
-                                borderColor: CyberTheme.neonYellow.withValues(
-                                  alpha: 0.4,
-                                ),
-                                backgroundColor: const Color(0xFF1E293B),
-                                chamferSize: 5.0,
-                                showAccents: false,
-                                child: InkWell(
-                                  onTap: () {
-                                    _playClick();
-                                    _onTutorialActionTapped(
-                                      TutorialTarget.hint,
-                                    );
-                                    _showHintDialog(context, state.level);
-                                  },
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isNarrow ? 12.0 : 14.0,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      Icons.lightbulb_outline,
-                                      size: isNarrow ? 18.0 : 20.0,
-                                      color: CyberTheme.neonYellow,
+                                SizedBox(width: isNarrow ? 6.0 : 8.0),
+                                // Reset button
+                                CyberCard(
+                                  key: TutorialKeys.reset,
+                                  borderColor: CyberTheme.borderTranslucent,
+                                  backgroundColor: const Color(0xFF1E293B),
+                                  chamferSize: 5.0,
+                                  showAccents: false,
+                                  child: InkWell(
+                                    onTap: () {
+                                      _playClick();
+                                      _onTutorialActionTapped(
+                                        TutorialTarget.reset,
+                                      );
+                                      _showConfirmDialog(
+                                        context,
+                                        title: 'RETRY SIMULATION',
+                                        message:
+                                            'Are you sure you want to restart the flight simulation?',
+                                        onConfirm: () {
+                                          notifier.clearProgram();
+                                          notifier.resetSimulation();
+                                        },
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isNarrow ? 12.0 : 14.0,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Icon(
+                                        Icons.refresh,
+                                        size: isNarrow ? 18.0 : 20.0,
+                                        color: Colors.white70,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        // Speed segmented pill selector
-                        CyberCard(
-                          key: TutorialKeys.speed,
-                          borderColor: CyberTheme.borderTranslucent,
-                          backgroundColor: CyberTheme.darkBg,
-                          chamferSize: 4.0,
-                          showAccents: false,
-                          child: Padding(
-                            padding: const EdgeInsets.all(2.0),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildSpeedSegment(1.0, '1X'),
-                                _buildSpeedSegment(2.0, '2X'),
-                                _buildSpeedSegment(4.0, '4X'),
                               ],
                             ),
                           ),
-                        ),
-                      ],
+                          // Speed segmented pill selector
+                          CyberCard(
+                            key: TutorialKeys.speed,
+                            borderColor: CyberTheme.borderTranslucent,
+                            backgroundColor: CyberTheme.darkBg,
+                            chamferSize: 4.0,
+                            showAccents: false,
+                            child: Padding(
+                              padding: const EdgeInsets.all(2.0),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildSpeedSegment(1.0, '1X'),
+                                  _buildSpeedSegment(2.0, '2X'),
+                                  _buildSpeedSegment(4.0, '4X'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1422,6 +1448,7 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              _buildHintGuidancePanel(state, notifier),
                               if (constraints.maxHeight > 240.0) ...[
                                 Row(
                                   mainAxisAlignment:
@@ -1873,7 +1900,9 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
                             _playClick();
                             Navigator.pop(dialogContext);
                             onConfirm();
-                            _onTutorialActionTapped(TutorialTarget.confirmReset);
+                            _onTutorialActionTapped(
+                              TutorialTarget.confirmReset,
+                            );
                           },
                           child: CyberCard(
                             key: TutorialKeys.confirmReset,
@@ -1906,6 +1935,370 @@ class _CommandPanelState extends ConsumerState<CommandPanel> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildHintGuidancePanel(
+    DroneGameState state,
+    GameStateNotifier notifier,
+  ) {
+    final showGuidance = ref.watch(showHintGuidanceProvider);
+
+    Widget child;
+    if (!showGuidance) {
+      child = const SizedBox.shrink(key: ValueKey('hint_hidden'));
+    } else {
+      final steps =
+          _cachedHintSteps ??
+          (() {
+            final startState = simulateProgramToState(
+              state.level,
+              state.program,
+            );
+            final path = solveLevelBFS(state.level, startState: startState);
+            return path != null ? path.take(3).toList() : <ActionType>[];
+          })();
+
+      if (steps.isEmpty) {
+        child = Padding(
+          key: const ValueKey('hint_empty'),
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: CyberCard(
+            borderColor: CyberTheme.neonYellow.withValues(alpha: 0.5),
+            backgroundColor: Colors.black26,
+            chamferSize: 8.0,
+            showAccents: false,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: CyberTheme.neonYellow,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8.0),
+                  Expanded(
+                    child: Text(
+                      'No optimal path calculated. Formulate your own flight plan!',
+                      style: CyberTheme.fontCode(
+                        size: 12.0,
+                        color: CyberTheme.textMuted,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: CyberTheme.textMuted,
+                      size: 16,
+                    ),
+                    onPressed: () {
+                      ref.read(showHintGuidanceProvider.notifier).set(false);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else {
+        child = Padding(
+          key: const ValueKey('hint_steps'),
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: CyberCard(
+            borderColor: CyberTheme.neonYellow,
+            backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.4),
+            borderWidth: 1.2,
+            chamferSize: 8.0,
+            showAccents: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 10.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.lightbulb,
+                            color: CyberTheme.neonYellow,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6.0),
+                          Text(
+                            'TACTICAL SOLUTION LINKED',
+                            style: CyberTheme.fontHeading(
+                              size: 13.0,
+                              color: CyberTheme.neonYellow,
+                            ),
+                          ),
+                        ],
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          _playClick();
+                          ref
+                              .read(showHintGuidanceProvider.notifier)
+                              .set(false);
+                        },
+                        child: const Icon(
+                          Icons.close,
+                          color: CyberTheme.neonYellow,
+                          size: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8.0),
+                  Text(
+                    'Follow flight sequence instructions step by step:',
+                    style: CyberTheme.fontCode(
+                      size: 11.0,
+                      color: CyberTheme.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 8.0),
+                  SingleChildScrollView(
+                    controller: _hintStepsScrollController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: List.generate(steps.length, (index) {
+                        final action = steps[index];
+                        final isFirst = index == 0;
+
+                        final isCompleted = index < _nextHintStepIndex;
+                        final isActive = index == _nextHintStepIndex;
+
+                        Color cardBorderColor;
+                        Color cardBgColor;
+                        Color textColor;
+                        IconData stepIcon;
+                        Color iconColor;
+
+                        if (isCompleted) {
+                          cardBorderColor = CyberTheme.neonGreen.withValues(
+                            alpha: 0.3,
+                          );
+                          cardBgColor = CyberTheme.neonGreen.withValues(
+                            alpha: 0.05,
+                          );
+                          textColor = CyberTheme.neonGreen.withValues(
+                            alpha: 0.6,
+                          );
+                          stepIcon = Icons.check_circle_outline;
+                          iconColor = CyberTheme.neonGreen.withValues(
+                            alpha: 0.6,
+                          );
+                        } else if (isActive) {
+                          cardBorderColor = CyberTheme.neonYellow;
+                          cardBgColor = CyberTheme.neonYellow.withValues(
+                            alpha: 0.1,
+                          );
+                          textColor = CyberTheme.neonYellow;
+                          stepIcon = action.icon;
+                          iconColor = CyberTheme.neonYellow;
+                        } else {
+                          cardBorderColor = CyberTheme.textMuted.withValues(
+                            alpha: 0.3,
+                          );
+                          cardBgColor = Colors.transparent;
+                          textColor = CyberTheme.textMuted;
+                          stepIcon = Icons.lock_outline;
+                          iconColor = CyberTheme.textMuted;
+                        }
+
+                        Widget cardContent = Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 6.0,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(stepIcon, size: 12.0, color: iconColor),
+                              const SizedBox(width: 4.0),
+                              Text(
+                                '${index + 1}. ${action.label}',
+                                style: CyberTheme.fontCode(
+                                  size: 11.0,
+                                  color: textColor,
+                                ).copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (isActive) {
+                          cardContent = cardContent
+                              .animate(
+                                onPlay: (controller) =>
+                                    controller.repeat(reverse: true),
+                              )
+                              .custom(
+                                duration: 1000.ms,
+                                builder: (context, value, child) {
+                                  return Opacity(
+                                    opacity: 0.7 + (value * 0.3),
+                                    child: child,
+                                  );
+                                },
+                              );
+                        }
+
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isFirst)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6.0,
+                                ),
+                                child: Icon(
+                                  Icons.arrow_forward,
+                                  size: 14.0,
+                                  color: isCompleted
+                                      ? CyberTheme.neonGreen.withValues(
+                                          alpha: 0.4,
+                                        )
+                                      : CyberTheme.textMuted.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                ),
+                              ),
+                            GestureDetector(
+                              onTap: isActive
+                                  ? () {
+                                      _playClick();
+                                      final newBlockId =
+                                          'block_hint_${DateTime.now().microsecondsSinceEpoch}_$index';
+
+                                      final activeContainer = ref.read(
+                                        activeContainerProvider,
+                                      );
+                                      String? finalParentId =
+                                          activeContainer.parentId;
+                                      bool finalIsElse = activeContainer.isElse;
+
+                                      if (finalParentId != null) {
+                                        final exists = notifier.blockExists(
+                                          finalParentId,
+                                        );
+                                        if (!exists) {
+                                          finalParentId = null;
+                                          finalIsElse = false;
+                                          ref
+                                              .read(
+                                                activeContainerProvider
+                                                    .notifier,
+                                              )
+                                              .reset();
+                                        }
+                                      }
+
+                                      ref
+                                          .read(
+                                            lastAddedBlockIdProvider.notifier,
+                                          )
+                                          .setLastAddedId(newBlockId);
+
+                                      notifier.addBlock(
+                                        ProgramBlock(
+                                          id: newBlockId,
+                                          type: BlockType.action,
+                                          action: action,
+                                        ),
+                                        parentId: finalParentId,
+                                        isElse: finalIsElse,
+                                      );
+
+                                      setState(() {
+                                        _nextHintStepIndex++;
+                                      });
+
+                                      if (_nextHintStepIndex == 2) {
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                              if (_hintStepsScrollController
+                                                  .hasClients) {
+                                                _hintStepsScrollController
+                                                    .animateTo(
+                                                      _hintStepsScrollController
+                                                          .position
+                                                          .maxScrollExtent,
+                                                      duration: const Duration(
+                                                        milliseconds: 300,
+                                                      ),
+                                                      curve: Curves.easeInOut,
+                                                    );
+                                              }
+                                            });
+                                      }
+
+                                      if (_nextHintStepIndex >= steps.length) {
+                                        Future.delayed(
+                                          const Duration(milliseconds: 600),
+                                          () {
+                                            if (mounted) {
+                                              ref
+                                                  .read(
+                                                    showHintGuidanceProvider
+                                                        .notifier,
+                                                  )
+                                                  .set(false);
+                                              setState(() {
+                                                _nextHintStepIndex = 0;
+                                              });
+                                            }
+                                          },
+                                        );
+                                      }
+                                    }
+                                  : null,
+                              child: CyberCard(
+                                borderColor: cardBorderColor,
+                                backgroundColor: cardBgColor,
+                                borderWidth: 1.0,
+                                chamferSize: 5.0,
+                                showAccents: false,
+                                child: cardContent,
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return SizeTransition(
+            sizeFactor: animation,
+            axisAlignment: -1.0,
+            child: FadeTransition(opacity: animation, child: child),
+          );
+        },
+        child: child,
+      ),
     );
   }
 }
@@ -1947,20 +2340,6 @@ class VisualBlock extends ConsumerWidget {
     final isFirstRepeat = allRepeats.isNotEmpty && allRepeats[0].id == block.id;
     final isSecondRepeat =
         allRepeats.length > 1 && allRepeats[1].id == block.id;
-
-    final lastAddedId = ref.watch(lastAddedBlockIdProvider);
-    if (lastAddedId == block.id) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Scrollable.ensureVisible(
-            context,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-          );
-          ref.read(lastAddedBlockIdProvider.notifier).setLastAddedId(null);
-        }
-      });
-    }
 
     return _buildCardContent(
       context,
